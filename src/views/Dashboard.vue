@@ -3,12 +3,17 @@ import { ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { coletaApi, idApi } from '../api'
 import { institutions, activeInstitutionId, setInstitutions, activeInstitution } from '../institution'
+import { config } from '../config'
 
 type CollectionRequestSummary = { id: string; status: string }
 
 const requests = ref<CollectionRequestSummary[]>([])
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
+
+function newRequestUrl(institutionId: string) {
+  return `${config.hemocioneColetaUrl}/agendar?institutionId=${encodeURIComponent(institutionId)}`
+}
 
 async function loadRequests(institutionId: string) {
   const requestData = await coletaApi.listCollectionRequests(institutionId)
@@ -39,6 +44,15 @@ onMounted(async () => {
       <p v-if="!institutions.length">Você ainda não tem instituição associada.</p>
       <template v-else>
         <h2>{{ activeInstitution()?.name }}</h2>
+        <a
+          v-if="activeInstitutionId"
+          :href="newRequestUrl(activeInstitutionId)"
+          target="_blank"
+          rel="noopener"
+          class="new-request"
+        >
+          Nova solicitação
+        </a>
         <h3>Meus pedidos</h3>
         <ul v-if="requests.length">
           <li v-for="request in requests" :key="request.id">
@@ -60,4 +74,13 @@ onMounted(async () => {
 ul { list-style: none; padding: 0; }
 li { padding: 8px 0; border-bottom: 1px solid #e8e8e8; }
 a { color: inherit; text-decoration: none; }
+.new-request {
+  display: inline-block;
+  margin: 8px 0 16px;
+  padding: 8px 16px;
+  background: #bb0a08;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 14px;
+}
 </style>

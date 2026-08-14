@@ -37,3 +37,12 @@ export const idApi = {
     return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, '/users/me/institutions')
   },
 }
+
+export const digitalEventApi = {
+  listEvents(institutionId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
+      `/api/v1/event?institutionId=${encodeURIComponent(institutionId)}`
+    )
+  },
+}
