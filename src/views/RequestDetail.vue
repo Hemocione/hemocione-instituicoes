@@ -4,6 +4,7 @@ import { useRoute, RouterLink } from 'vue-router'
 import { coletaApi } from '../api'
 import { activeInstitutionId } from '../institution'
 import { statusLabel, terminalStatuses } from '../statusLabels'
+import EventBrandingForm from '../components/EventBrandingForm.vue'
 
 type CollectionRequestDetail = {
   id: string
@@ -77,6 +78,14 @@ onMounted(async () => {
       <p class="current-status">
         Status atual: <span :class="{ terminal: terminalStatuses.has(request.status) }">{{ statusLabel(request.status) }}</span>
       </p>
+
+      <EventBrandingForm
+        v-if="activeInstitutionId"
+        :institution-id="activeInstitutionId"
+        :request-id="request.id"
+        :status="request.status"
+        :event-slug="request.eventSlug"
+      />
     </template>
   </main>
 </template>
