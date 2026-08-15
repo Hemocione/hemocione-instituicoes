@@ -42,37 +42,36 @@ async function submit() {
 </script>
 
 <template>
-  <form v-if="visible" class="event-branding" @submit.prevent="submit">
+  <form v-if="visible" class="card event-branding" @submit.prevent="submit">
     <h3>Personalizar evento</h3>
-    <label>
+    <label class="field">
       Banner (URL)
       <input v-model="banner" type="text" data-testid="banner-input" />
     </label>
-    <label>
+    <label class="field">
       Logo (URL)
       <input v-model="logo" type="text" data-testid="logo-input" />
     </label>
-    <label>
+    <label class="field">
       Endereço
       <input v-model="address" type="text" data-testid="address-input" />
     </label>
-    <button type="submit" data-testid="submit-button" :disabled="saving">Salvar</button>
-    <p v-if="successMessage" data-testid="success-message" class="success">{{ successMessage }}</p>
-    <p v-if="errorMessage" data-testid="error-message" class="error">{{ errorMessage }}</p>
+    <button type="submit" class="btn btn-primary" data-testid="submit-button" :disabled="saving">Salvar</button>
+    <p v-if="successMessage" data-testid="success-message" class="success-message">{{ successMessage }}</p>
+    <p v-if="errorMessage" data-testid="error-message" class="error-message">{{ errorMessage }}</p>
   </form>
 </template>
 
 <style scoped>
-.event-branding { margin: 20px 0; padding: 16px; border: 1px solid #e8e8e8; border-radius: 8px; }
-.event-branding label { display: block; margin-bottom: 10px; font-size: 14px; }
-.event-branding input {
-  display: block; width: 100%; margin-top: 4px; padding: 6px 8px;
-  border: 1px solid #e8e8e8; border-radius: 6px; font: inherit; box-sizing: border-box;
+.event-branding {
+  margin-top: 16px;
 }
-.event-branding button {
-  padding: 8px 16px; background: #bb0a08; color: #fff; border: none;
-  border-radius: 6px; font-size: 14px; cursor: pointer;
+.event-branding h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
 }
-.success { color: #2ac769; }
-.error { color: #bb0a08; }
+.event-branding .success-message,
+.event-branding .error-message {
+  margin-top: 12px;
+}
 </style>

@@ -39,27 +39,50 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="events">
-    <RouterLink to="/">&larr; voltar</RouterLink>
+  <main class="page events">
+    <RouterLink to="/" class="back-link">&larr; voltar</RouterLink>
     <h2>Meus eventos</h2>
-    <p v-if="loading">Carregando...</p>
-    <p v-else-if="errorMessage" class="error">{{ errorMessage }}</p>
-    <p v-else-if="!events.length">Nenhum evento ainda.</p>
-    <ul v-else>
-      <li v-for="event in events" :key="event._id">
-        <strong>{{ event.name }}</strong>
-        <span class="pill">{{ formatDate(event.startAt) }}</span>
-        <a :href="eventUrl(event.slug)" target="_blank" rel="noopener">ver evento</a>
-      </li>
-    </ul>
+    <p v-if="loading" class="empty-state">Carregando...</p>
+    <p v-else-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+    <p v-else-if="!events.length" class="empty-state">Nenhum evento ainda.</p>
+    <div v-else class="event-list">
+      <div v-for="event in events" :key="event._id" class="card event-card">
+        <div class="event-info">
+          <strong class="event-name">{{ event.name }}</strong>
+          <span class="pill pill-neutral">{{ formatDate(event.startAt) }}</span>
+        </div>
+        <a :href="eventUrl(event.slug)" target="_blank" rel="noopener" class="btn btn-secondary">ver evento</a>
+      </div>
+    </div>
   </main>
 </template>
 
 <style scoped>
-.events { max-width: 640px; margin: 40px auto; font-family: system-ui, sans-serif; }
-.error { color: #bb0a08; }
-.pill { background: #f2f2f2; border-radius: 999px; padding: 2px 10px; font-size: 12px; margin: 0 10px; }
-ul { list-style: none; padding: 0; }
-li { padding: 8px 0; border-bottom: 1px solid #e8e8e8; }
-a { color: #bb0a08; }
+.events h2 {
+  margin-bottom: 20px;
+}
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.event-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.event-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.event-name {
+  font-size: 14px;
+  color: var(--hemo-color-black-100);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 </style>
