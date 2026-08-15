@@ -1,5 +1,6 @@
 :root {
-  /* Hemocione brand tokens — mirrors hemocione-coleta/assets/css/global.css */
+  /* Hemocione brand tokens — copied by hand from hemocione-coleta/assets/css/global.css.
+     There is no shared package; if that file's --hemo-color-* values change, update these too. */
   --hemo-color-primary: #bb0a08;
   --hemo-color-primary-dark: #8a0000;
   --hemo-color-primary-light: #ff6262;
