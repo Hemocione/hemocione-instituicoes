@@ -11,14 +11,30 @@ import { institutions, activeInstitutionId, setActiveInstitution } from '../inst
   >
     <option v-for="inst in institutions" :key="inst.id" :value="inst.id">{{ inst.name }}</option>
   </select>
-  <strong v-else-if="institutions.length === 1">{{ institutions[0].name }}</strong>
+  <strong v-else-if="institutions.length === 1" class="org-name">{{ institutions[0].name }}</strong>
 </template>
 
 <style scoped>
 .org-switcher {
   font: inherit;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid #e8e8e8;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: var(--hemo-radius);
+  border: 1px solid var(--hemo-color-black-15);
+  background: var(--hemo-color-white);
+  color: var(--hemo-color-black-100);
+}
+.org-switcher:focus {
+  outline: none;
+  border-color: var(--hemo-color-primary);
+}
+.org-name {
+  font-size: 14px;
+  color: var(--hemo-color-black-100);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

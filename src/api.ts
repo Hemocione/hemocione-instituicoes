@@ -22,6 +22,8 @@ async function authedFetch(baseUrl: string, path: string, init: RequestInit = {}
   return response.json()
 }
 
+export type EventBranding = { banner?: string; logo?: string; address?: string }
+
 export const coletaApi = {
   listCollectionRequests(institutionId: string, status?: string) {
     const query = status ? `?status=${encodeURIComponent(status)}` : ''
@@ -30,10 +32,31 @@ export const coletaApi = {
       `/api/v1/institutions/${institutionId}/collection-requests${query}`
     )
   },
+
+  updateEventBranding(institutionId: string, requestId: string, branding: EventBranding) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_COLETA_URL,
+      `/api/v1/institutions/${institutionId}/collection-requests/${requestId}/event-branding`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(branding),
+      }
+    )
+  },
 }
 
 export const idApi = {
   myInstitutions() {
     return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, '/users/me/institutions')
+  },
+}
+
+export const digitalEventApi = {
+  listEvents(institutionId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
+      `/api/v1/event?institutionId=${encodeURIComponent(institutionId)}`
+    )
   },
 }
