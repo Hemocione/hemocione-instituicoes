@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { coletaApi } from '../api'
 import { activeInstitutionId } from '../institution'
-import { statusLabel, terminalStatuses } from '../statusLabels'
+import { statusLabel, statusTone } from '../statusLabels'
+import { config } from '../config'
 import EventBrandingForm from '../components/EventBrandingForm.vue'
 
 type CollectionRequestDetail = {
@@ -39,45 +40,46 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="detail">
-    <RouterLink to="/">&larr; voltar</RouterLink>
-    <p v-if="loading">Carregando...</p>
-    <p v-else-if="errorMessage" class="error">{{ errorMessage }}</p>
-    <p v-else-if="!request">Pedido não encontrado.</p>
+  <main class="page detail">
+    <RouterLink to="/" class="back-link">&larr; voltar</RouterLink>
+    <p v-if="loading" class="empty-state">Carregando...</p>
+    <p v-else-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+    <p v-else-if="!request" class="empty-state">Pedido não encontrado.</p>
     <template v-else>
-      <h2>Etapas e Contrapropostas</h2>
-      <p v-if="request.note" class="note">Nota: {{ request.note }}</p>
+      <div class="card">
+        <div class="detail-header">
+          <h2>Etapas e Contrapropostas</h2>
+          <span class="pill" :class="`pill-${statusTone(request.status)}`">{{ statusLabel(request.status) }}</span>
+        </div>
+        <p v-if="request.note" class="note">Nota: {{ request.note }}</p>
 
-      <ol class="timeline">
-        <li class="done">Pedido enviado</li>
-        <li v-if="request.counterProposal" :class="{ done: request.status !== 'counter_proposed' }">
-          Contraproposta —
-          <span v-if="request.status === 'counter_proposed'">aguardando resposta</span>
-          <span v-else-if="request.status === 'counter_proposal_declined'">recusada</span>
-          <span v-else>aceita</span>
-          <span v-if="request.counterProposal.proposedDates?.[0]">
-            ({{ request.counterProposal.proposedDates[0].date }}, {{ request.counterProposal.proposedDates[0].startTime }})
-          </span>
-        </li>
-        <li
-          v-if="['awaiting_technical_visit', 'technical_visit_confirmed', 'scheduled'].includes(request.status)"
-          :class="{ done: request.status !== 'awaiting_technical_visit' }"
-        >
-          Visita técnica —
-          <span v-if="request.status === 'awaiting_technical_visit'">aguardando veredito</span>
-          <span v-else>confirmada</span>
-        </li>
-        <li :class="{ done: request.status === 'scheduled' }">
-          Evento e inscrições
-          <a v-if="request.eventSlug" :href="`https://eventos.hemocione.com.br/event/${request.eventSlug}`" target="_blank">
-            — link de inscrição
-          </a>
-        </li>
-      </ol>
-
-      <p class="current-status">
-        Status atual: <span :class="{ terminal: terminalStatuses.has(request.status) }">{{ statusLabel(request.status) }}</span>
-      </p>
+        <ol class="timeline">
+          <li class="done">Pedido enviado</li>
+          <li v-if="request.counterProposal" :class="{ done: request.status !== 'counter_proposed' }">
+            Contraproposta —
+            <span v-if="request.status === 'counter_proposed'">aguardando resposta</span>
+            <span v-else-if="request.status === 'counter_proposal_declined'">recusada</span>
+            <span v-else>aceita</span>
+            <span v-if="request.counterProposal.proposedDates?.[0]">
+              ({{ request.counterProposal.proposedDates[0].date }}, {{ request.counterProposal.proposedDates[0].startTime }})
+            </span>
+          </li>
+          <li
+            v-if="request.counterProposal?.needsTechnicalVisit && ['awaiting_technical_visit', 'technical_visit_confirmed', 'scheduled'].includes(request.status)"
+            :class="{ done: request.status !== 'awaiting_technical_visit' }"
+          >
+            Visita técnica —
+            <span v-if="request.status === 'awaiting_technical_visit'">aguardando veredito</span>
+            <span v-else>confirmada</span>
+          </li>
+          <li :class="{ done: request.status === 'scheduled' }">
+            Evento e inscrições
+            <a v-if="request.eventSlug" :href="`${config.hemocioneDigitalEventUrl}/event/${request.eventSlug}`" target="_blank">
+              — link de inscrição
+            </a>
+          </li>
+        </ol>
+      </div>
 
       <EventBrandingForm
         v-if="activeInstitutionId"
@@ -91,17 +93,55 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.detail { max-width: 640px; margin: 40px auto; font-family: system-ui, sans-serif; }
-.error { color: #bb0a08; }
-.note { background: #f2f2f2; border-radius: 8px; padding: 10px 12px; margin: 12px 0; }
-.timeline { list-style: none; padding: 0; margin: 16px 0; }
-.timeline li { padding: 10px 0 10px 24px; border-left: 2px solid #e8e8e8; position: relative; color: #999; }
-.timeline li.done { color: #1a1a1a; border-left-color: #2ac769; }
-.timeline li::before {
-  content: ''; position: absolute; left: -7px; top: 14px; width: 10px; height: 10px;
-  border-radius: 50%; background: #e8e8e8;
+.detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
 }
-.timeline li.done::before { background: #2ac769; }
-.current-status { margin-top: 20px; font-weight: 600; }
-.current-status .terminal { color: #bb0a08; }
+.note {
+  background: var(--hemo-color-secondary);
+  border-radius: var(--hemo-radius);
+  padding: 10px 12px;
+  margin: 16px 0 0;
+  font-size: 14px;
+  color: var(--hemo-color-black-80);
+}
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+}
+.timeline li {
+  padding: 10px 0 10px 24px;
+  border-left: 2px solid var(--hemo-color-black-15);
+  position: relative;
+  color: var(--hemo-color-black-60);
+  font-size: 14px;
+}
+.timeline li:last-child {
+  border-left-color: transparent;
+}
+.timeline li.done {
+  color: var(--hemo-color-black-100);
+  border-left-color: var(--hemo-color-success);
+}
+.timeline li::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--hemo-color-black-15);
+}
+.timeline li.done::before {
+  background: var(--hemo-color-success);
+}
+.timeline a {
+  color: var(--hemo-color-link);
+  font-weight: 500;
+}
 </style>
