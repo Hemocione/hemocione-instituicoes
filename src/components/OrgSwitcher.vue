@@ -32,6 +32,9 @@ import { institutions, activeInstitutionId, setActiveInstitution } from '../inst
 .org-name {
   font-size: 14px;
   color: var(--hemo-color-black-100);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 </style>

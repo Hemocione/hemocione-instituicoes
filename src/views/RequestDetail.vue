@@ -4,6 +4,7 @@ import { useRoute, RouterLink } from 'vue-router'
 import { coletaApi } from '../api'
 import { activeInstitutionId } from '../institution'
 import { statusLabel, statusTone } from '../statusLabels'
+import { config } from '../config'
 import EventBrandingForm from '../components/EventBrandingForm.vue'
 
 type CollectionRequestDetail = {
@@ -64,7 +65,7 @@ onMounted(async () => {
             </span>
           </li>
           <li
-            v-if="['awaiting_technical_visit', 'technical_visit_confirmed', 'scheduled'].includes(request.status)"
+            v-if="request.counterProposal?.needsTechnicalVisit && ['awaiting_technical_visit', 'technical_visit_confirmed', 'scheduled'].includes(request.status)"
             :class="{ done: request.status !== 'awaiting_technical_visit' }"
           >
             Visita técnica —
@@ -73,7 +74,7 @@ onMounted(async () => {
           </li>
           <li :class="{ done: request.status === 'scheduled' }">
             Evento e inscrições
-            <a v-if="request.eventSlug" :href="`https://eventos.hemocione.com.br/event/${request.eventSlug}`" target="_blank">
+            <a v-if="request.eventSlug" :href="`${config.hemocioneDigitalEventUrl}/event/${request.eventSlug}`" target="_blank">
               — link de inscrição
             </a>
           </li>

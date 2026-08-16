@@ -29,4 +29,9 @@ describe('statusTone', () => {
   it('falls back to neutral for unknown statuses', () => {
     expect(statusTone('something_unmapped')).toBe('neutral')
   })
+
+  it('falls back to neutral for inherited Object.prototype properties', () => {
+    expect(statusTone('toString')).toBe('neutral')
+    expect(statusTone('__proto__')).toBe('neutral')
+  })
 })

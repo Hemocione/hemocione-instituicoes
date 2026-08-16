@@ -36,5 +36,5 @@ const statusTones: Record<string, StatusTone> = {
 }
 
 export function statusTone(status: string): StatusTone {
-  return statusTones[status] ?? 'neutral'
+  return Object.prototype.hasOwnProperty.call(statusTones, status) ? statusTones[status] : 'neutral'
 }

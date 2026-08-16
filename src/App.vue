@@ -50,6 +50,10 @@ import OrgSwitcher from './components/OrgSwitcher.vue'
   background: var(--hemo-color-black-5);
   color: var(--hemo-color-black-100);
 }
+.nav a:focus-visible {
+  outline: 2px solid var(--hemo-color-primary);
+  outline-offset: 2px;
+}
 .nav a.router-link-active {
   color: var(--hemo-color-primary);
   background: rgba(187, 10, 8, 0.08);
