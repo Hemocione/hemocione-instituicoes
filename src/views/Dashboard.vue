@@ -24,7 +24,7 @@ async function loadRequests(institutionId: string) {
 onMounted(async () => {
   try {
     const data = await idApi.myInstitutions()
-    setInstitutions(data.institutions ?? data)
+    setInstitutions(data)
 
     if (activeInstitutionId.value) {
       await loadRequests(activeInstitutionId.value)
