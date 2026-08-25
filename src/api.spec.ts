@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { coletaApi } from './api'
+import { coletaApi, idApi } from './api'
 import { token } from './auth'
 
 describe('coletaApi.updateEventBranding', () => {
@@ -37,5 +37,42 @@ describe('coletaApi.updateEventBranding', () => {
         }),
       })
     )
+  })
+})
+
+describe('idApi.myInstitutions', () => {
+  beforeEach(() => {
+    token.value = 'test-token'
+  })
+
+  it('maps membership records to {id, name} using the nested institution, not the membership row id', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [
+          {
+            id: 'membership-row-1',
+            institutionId: 'inst-real-1',
+            role: 'admin',
+            institution: { id: 'inst-real-1', name: 'Escola Real' },
+          },
+          {
+            id: 'membership-row-2',
+            institutionId: 'inst-real-2',
+            role: 'staff',
+            institution: { id: 'inst-real-2', name: 'Empresa Real' },
+          },
+        ],
+      })
+    )
+
+    const result = await idApi.myInstitutions()
+
+    expect(result).toEqual([
+      { id: 'inst-real-1', name: 'Escola Real' },
+      { id: 'inst-real-2', name: 'Empresa Real' },
+    ])
   })
 })
