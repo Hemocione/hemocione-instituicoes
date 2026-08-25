@@ -9,8 +9,14 @@ export const activeInstitutionId = ref<string | null>(
 
 export function setInstitutions(list: Institution[]) {
   institutions.value = list
-  if (!activeInstitutionId.value && list[0]) {
-    setActiveInstitution(list[0].id)
+  const stillValid = list.some((institution) => institution.id === activeInstitutionId.value)
+  if (!stillValid) {
+    if (list[0]) {
+      setActiveInstitution(list[0].id)
+    } else {
+      activeInstitutionId.value = null
+      localStorage.removeItem('active_institution_id')
+    }
   }
 }
 

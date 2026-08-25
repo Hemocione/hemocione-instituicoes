@@ -46,9 +46,22 @@ export const coletaApi = {
   },
 }
 
+type InstitutionMembership = {
+  institutionId: string
+  role: string
+  institution: { id: string; name: string }
+}
+
 export const idApi = {
-  myInstitutions() {
-    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, '/users/me/institutions')
+  async myInstitutions() {
+    const memberships: InstitutionMembership[] = await authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      '/users/me/institutions'
+    )
+    return memberships.map((membership) => ({
+      id: membership.institution.id,
+      name: membership.institution.name,
+    }))
   },
 }
 
