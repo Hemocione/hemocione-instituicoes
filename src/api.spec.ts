@@ -75,4 +75,71 @@ describe('idApi.myInstitutions', () => {
       { id: 'inst-real-2', name: 'Empresa Real' },
     ])
   })
+
+  it('preserves certification data from the institution object', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [
+          {
+            institutionId: 'inst-1',
+            role: 'admin',
+            institution: { id: 'inst-1', name: 'Escola Real', isCertified: true },
+          },
+        ],
+      })
+    )
+
+    const result = await idApi.myInstitutions()
+
+    expect(result[0]).toMatchObject({ id: 'inst-1', name: 'Escola Real', isCertified: true })
+  })
+})
+
+describe('idApi interest campaigns', () => {
+  beforeEach(() => {
+    token.value = 'test-token'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ campaigns: [] }),
+      })
+    )
+  })
+
+  it('creates an interest campaign with the institution payload', async () => {
+    await idApi.createInterestCampaign('inst-1', {
+      periodLabel: 'Março 2026',
+      startDate: '2026-03-01',
+      endDate: '2026-03-07',
+    })
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://id-api.test/institutions/inst-1/interest-campaigns',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token',
+          'Content-Type': 'application/json',
+        }),
+        body: JSON.stringify({
+          periodLabel: 'Março 2026',
+          startDate: '2026-03-01',
+          endDate: '2026-03-07',
+        }),
+      })
+    )
+  })
+
+  it('loads the public campaign without an authorization header', async () => {
+    await idApi.getPublicInterestCampaign('campaign-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://id-api.test/interest-campaigns/campaign-1/public'
+    )
+  })
 })
