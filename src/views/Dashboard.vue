@@ -5,6 +5,7 @@ import { coletaApi, idApi } from '../api'
 import { institutions, activeInstitutionId, setInstitutions, activeInstitution } from '../institution'
 import { config } from '../config'
 import { statusLabel, statusTone } from '../statusLabels'
+import CertificationSection from '../components/CertificationSection.vue'
 
 type CollectionRequestSummary = { id: string; status: string }
 
@@ -70,6 +71,12 @@ onMounted(async () => {
           </RouterLink>
         </div>
         <p v-else class="empty-state">Nenhum pedido de coleta ainda.</p>
+
+        <CertificationSection
+          v-if="activeInstitutionId"
+          :institution-id="activeInstitutionId"
+          :institution="activeInstitution() ?? undefined"
+        />
       </template>
     </template>
   </main>

@@ -1,4 +1,17 @@
 import { token, logout, redirectToLogin } from './auth'
+import type { Institution } from './institution'
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly path: string
+
+  constructor(status: number, path: string) {
+    super(`request failed: ${status} ${path}`)
+    this.status = status
+    this.path = path
+    this.name = 'ApiError'
+  }
+}
 
 async function authedFetch(baseUrl: string, path: string, init: RequestInit = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -16,7 +29,17 @@ async function authedFetch(baseUrl: string, path: string, init: RequestInit = {}
   }
 
   if (!response.ok) {
-    throw new Error(`request failed: ${response.status} ${path}`)
+    throw new ApiError(response.status, path)
+  }
+
+  return response.json()
+}
+
+async function publicFetch(baseUrl: string, path: string) {
+  const response = await fetch(`${baseUrl}${path}`)
+
+  if (!response.ok) {
+    throw new ApiError(response.status, path)
   }
 
   return response.json()
@@ -49,7 +72,31 @@ export const coletaApi = {
 type InstitutionMembership = {
   institutionId: string
   role: string
-  institution: { id: string; name: string }
+  institution: Institution
+}
+
+export type InterestCampaignPayload = {
+  periodLabel: string
+  startDate: string
+  endDate: string
+}
+
+export type InterestCampaign = {
+  id: string
+  periodLabel: string
+  startDate: string
+  endDate: string
+  status: string
+  [key: string]: unknown
+}
+
+export type PublicInterestCampaign = {
+  institutionName: string
+  institutionLogoUrl?: string
+  institutionBannerUrl?: string
+  periodLabel: string
+  questionText: string
+  isAcceptingResponses: boolean
 }
 
 export const idApi = {
@@ -59,9 +106,64 @@ export const idApi = {
       '/users/me/institutions'
     )
     return memberships.map((membership) => ({
+      ...membership.institution,
       id: membership.institution.id,
       name: membership.institution.name,
     }))
+  },
+
+  listInterestCampaigns(institutionId: string): Promise<InterestCampaign[]> {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/interest-campaigns`
+    ).then((data: unknown) => {
+      if (Array.isArray(data)) return data as InterestCampaign[]
+      if (data && typeof data === 'object') {
+        const container = data as Record<string, unknown>
+        const campaigns = container.campaigns ?? container.items
+        if (Array.isArray(campaigns)) return campaigns as InterestCampaign[]
+      }
+      return []
+    })
+  },
+
+  createInterestCampaign(institutionId: string, payload: InterestCampaignPayload) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/interest-campaigns`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    )
+  },
+
+  cancelInterestCampaign(institutionId: string, campaignId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/interest-campaigns/${campaignId}/cancel`,
+      { method: 'PUT' }
+    )
+  },
+
+  getPublicInterestCampaign(campaignId: string): Promise<PublicInterestCampaign> {
+    return publicFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/interest-campaigns/${campaignId}/public`
+    )
+  },
+
+  respondToInterestCampaign(campaignId: string, daysAvailable: string[]) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/interest-campaigns/${campaignId}/respond`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ daysAvailable }),
+      }
+    )
   },
 }
 

@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import OrgSwitcher from './components/OrgSwitcher.vue'
+
+const route = useRoute()
+const isPublicRoute = computed(() => route.meta.public === true)
 </script>
 
 <template>
   <header class="topbar">
     <span class="brand"><strong>hemocione</strong> instituições</span>
-    <nav class="nav">
+    <nav v-if="!isPublicRoute" class="nav">
       <RouterLink to="/">Dashboard</RouterLink>
       <RouterLink to="/eventos">Meus eventos</RouterLink>
     </nav>
-    <OrgSwitcher />
+    <OrgSwitcher v-if="!isPublicRoute" />
   </header>
   <router-view />
 </template>
