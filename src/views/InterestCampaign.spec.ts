@@ -95,6 +95,30 @@ describe('InterestCampaign', () => {
     expect(wrapper.get('a').attributes('href')).toMatch(/^https:\/\/wa\.me\/\?text=/)
   })
 
+  it('updates the static og:image in place instead of duplicating it, and restores it on unmount', async () => {
+    const staticImage = document.createElement('meta')
+    staticImage.setAttribute('property', 'og:image')
+    staticImage.setAttribute('content', 'https://cdn.hemocione.com.br/generic-og.png')
+    document.head.appendChild(staticImage)
+
+    const router = createTestRouter()
+    await router.push('/interesse/campaign-1')
+    await router.isReady()
+
+    const wrapper = mount(InterestCampaign, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const ogImageTags = document.head.querySelectorAll('meta[property="og:image"]')
+    expect(ogImageTags).toHaveLength(1)
+    expect(ogImageTags[0].getAttribute('content')).toBe('https://cdn.test/banner.png')
+
+    wrapper.unmount()
+
+    const restoredTags = document.head.querySelectorAll('meta[property="og:image"]')
+    expect(restoredTags).toHaveLength(1)
+    expect(restoredTags[0].getAttribute('content')).toBe('https://cdn.hemocione.com.br/generic-og.png')
+  })
+
   it('disables interest when the public campaign is closed', async () => {
     vi.mocked(fetch).mockReset().mockResolvedValue({
       ok: true,
