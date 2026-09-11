@@ -86,7 +86,7 @@ describe('idApi.myInstitutions', () => {
           {
             institutionId: 'inst-1',
             role: 'admin',
-            institution: { id: 'inst-1', name: 'Escola Real', isCertified: true },
+            institution: { id: 'inst-1', name: 'Escola Real', certificationStatus: 'certified' },
           },
         ],
       })
@@ -94,7 +94,7 @@ describe('idApi.myInstitutions', () => {
 
     const result = await idApi.myInstitutions()
 
-    expect(result[0]).toMatchObject({ id: 'inst-1', name: 'Escola Real', isCertified: true })
+    expect(result[0]).toMatchObject({ id: 'inst-1', name: 'Escola Real', certificationStatus: 'certified' })
   })
 })
 

@@ -30,16 +30,19 @@ function currentPageUrl() {
   return `${window.location.origin}${route.path}`
 }
 
+const createdMetaTags: HTMLMetaElement[] = []
+const originalMetaContent = new Map<HTMLMetaElement, string | null>()
+
 function updateMeta(attribute: 'name' | 'property', key: string, content: string) {
-  let meta = Array.from(document.head.querySelectorAll<HTMLMetaElement>('meta[data-interest-campaign-meta]')).find(
-    (element) => element.getAttribute(attribute) === key
-  )
+  let meta = document.head.querySelector<HTMLMetaElement>(`meta[${attribute}="${key}"]`)
 
   if (!meta) {
     meta = document.createElement('meta')
-    meta.dataset.interestCampaignMeta = 'true'
     meta.setAttribute(attribute, key)
     document.head.appendChild(meta)
+    createdMetaTags.push(meta)
+  } else if (!originalMetaContent.has(meta) && !createdMetaTags.includes(meta)) {
+    originalMetaContent.set(meta, meta.getAttribute('content'))
   }
 
   meta.setAttribute('content', content)
@@ -48,13 +51,15 @@ function updateMeta(attribute: 'name' | 'property', key: string, content: string
 function updateCampaignMeta(data?: PublicInterestCampaign) {
   const institutionName = data?.institutionName ?? 'Campanha de interesse'
   const description = data?.questionText ?? 'Demonstre seu interesse em participar de uma coleta externa.'
-  const image = data?.institutionBannerUrl || data?.institutionLogoUrl || ''
+  const image = data?.institutionBannerUrl || data?.institutionLogoUrl
 
   document.title = `${institutionName} | Campanha de interesse`
   updateMeta('name', 'robots', 'noindex,nofollow')
   updateMeta('property', 'og:title', `${institutionName} | Campanha de interesse`)
   updateMeta('property', 'og:description', description)
-  updateMeta('property', 'og:image', image)
+  if (image) {
+    updateMeta('property', 'og:image', image)
+  }
   updateMeta('property', 'og:url', currentPageUrl())
 }
 
@@ -120,7 +125,14 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.title = previousTitle.value
-  document.head.querySelectorAll('meta[data-interest-campaign-meta]').forEach((meta) => meta.remove())
+  createdMetaTags.forEach((meta) => meta.remove())
+  originalMetaContent.forEach((content, meta) => {
+    if (content === null) {
+      meta.remove()
+    } else {
+      meta.setAttribute('content', content)
+    }
+  })
 })
 </script>
 

@@ -36,24 +36,5 @@ export function activeInstitution() {
 export function institutionHasCertification(institution: Institution | null | undefined): boolean {
   if (!institution) return false
 
-  const statusValues = [institution.certificationStatus, institution.sealStatus]
-  const certification = institution.certification
-  const nestedCertification =
-    certification && typeof certification === 'object' ? (certification as Record<string, unknown>) : null
-  const nestedStatus = nestedCertification?.status ?? nestedCertification?.certificationStatus
-  const normalizedStatuses = statusValues
-    .concat(nestedStatus)
-    .filter((status): status is string => typeof status === 'string')
-    .map((status) => status.toLowerCase())
-
-  return (
-    institution.isCertified === true ||
-    institution.certified === true ||
-    institution.hasCertification === true ||
-    institution.hasCertificationSeal === true ||
-    certification === true ||
-    nestedCertification?.isGranted === true ||
-    nestedCertification?.granted === true ||
-    normalizedStatuses.some((status) => ['granted', 'certified', 'approved', 'active'].includes(status))
-  )
+  return institution.hasCollectionBadge === true || institution.certificationStatus === 'certified'
 }
