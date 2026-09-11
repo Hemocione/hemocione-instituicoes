@@ -52,7 +52,7 @@ describe('CertificationSection', () => {
     vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([])
 
     const wrapper = mount(CertificationSection, {
-      props: { institutionId: 'inst-1', institution: { ...institution, isCertified: true } },
+      props: { institutionId: 'inst-1', institution: { ...institution, certificationStatus: 'certified' } },
     })
     await flushPromises()
 
