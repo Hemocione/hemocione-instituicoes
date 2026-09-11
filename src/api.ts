@@ -23,9 +23,12 @@ async function authedFetch(baseUrl: string, path: string, init: RequestInit = {}
   })
 
   if (response.status === 401) {
-    logout()
-    redirectToLogin()
-    throw new Error('unauthorized')
+    if (baseUrl === import.meta.env.VITE_HEMOCIONE_ID_API_URL) {
+      logout()
+      redirectToLogin()
+    }
+
+    throw new ApiError(response.status, path)
   }
 
   if (!response.ok) {

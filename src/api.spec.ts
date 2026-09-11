@@ -1,6 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { coletaApi, idApi } from './api'
-import { token } from './auth'
+import { ApiError, coletaApi, digitalEventApi, idApi } from './api'
+import { logout, redirectToLogin, token } from './auth'
+
+vi.mock('./auth', async () => {
+  const actual = await vi.importActual<typeof import('./auth')>('./auth')
+  return {
+    ...actual,
+    logout: vi.fn(),
+    redirectToLogin: vi.fn(),
+  }
+})
 
 describe('coletaApi.updateEventBranding', () => {
   beforeEach(() => {
@@ -141,5 +150,36 @@ describe('idApi interest campaigns', () => {
     expect(fetch).toHaveBeenCalledWith(
       'https://id-api.test/interest-campaigns/campaign-1/public'
     )
+  })
+})
+
+describe('authenticated 401 responses', () => {
+  beforeEach(() => {
+    token.value = 'test-token'
+    vi.mocked(logout).mockReset()
+    vi.mocked(redirectToLogin).mockReset()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({}),
+      })
+    )
+  })
+
+  it('keeps the session for coleta and digital event 401 responses', async () => {
+    await expect(coletaApi.listCollectionRequests('inst-1')).rejects.toBeInstanceOf(ApiError)
+    await expect(digitalEventApi.listEvents('inst-1')).rejects.toBeInstanceOf(ApiError)
+
+    expect(logout).not.toHaveBeenCalled()
+    expect(redirectToLogin).not.toHaveBeenCalled()
+  })
+
+  it('logs out and redirects for an hemocione-id 401 response', async () => {
+    await expect(idApi.myInstitutions()).rejects.toBeInstanceOf(ApiError)
+
+    expect(logout).toHaveBeenCalledOnce()
+    expect(redirectToLogin).toHaveBeenCalledOnce()
   })
 })
