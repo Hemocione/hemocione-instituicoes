@@ -6,6 +6,7 @@ import { institutions, activeInstitutionId, setInstitutions, activeInstitution }
 import { config } from '../config'
 import { statusLabel, statusTone } from '../statusLabels'
 import CertificationSection from '../components/CertificationSection.vue'
+import InstitutionImageUploadField from '../components/InstitutionImageUploadField.vue'
 
 type CollectionRequestSummary = { id: string; status: string }
 
@@ -20,6 +21,11 @@ function newRequestUrl(institutionId: string) {
 async function loadRequests(institutionId: string) {
   const requestData = await coletaApi.listCollectionRequests(institutionId)
   requests.value = requestData.collectionRequests ?? requestData.items ?? requestData
+}
+
+function updateInstitutionImage(kind: 'logo' | 'banner', url: string) {
+  const institution = activeInstitution()
+  if (institution) institution[kind] = url
 }
 
 onMounted(async () => {
@@ -73,6 +79,30 @@ onMounted(async () => {
             Nova solicitação
           </a>
         </div>
+
+        <section v-if="activeInstitution()?.role === 'admin'" class="institution-images-section" aria-labelledby="institution-images-title">
+          <div class="section-heading institution-images-heading">
+            <div>
+              <p class="section-kicker">Identidade</p>
+              <h2 id="institution-images-title">Imagens da instituição</h2>
+              <p class="section-description">Atualize a logo e o banner exibidos para sua instituição.</p>
+            </div>
+          </div>
+          <div v-if="activeInstitutionId" class="institution-images-grid">
+            <InstitutionImageUploadField
+              kind="logo"
+              :institution-id="activeInstitutionId"
+              :model-value="activeInstitution()?.logo"
+              @update:model-value="updateInstitutionImage('logo', $event)"
+            />
+            <InstitutionImageUploadField
+              kind="banner"
+              :institution-id="activeInstitutionId"
+              :model-value="activeInstitution()?.banner"
+              @update:model-value="updateInstitutionImage('banner', $event)"
+            />
+          </div>
+        </section>
 
         <section class="requests-section" aria-labelledby="requests-title">
           <div class="section-heading">
@@ -163,6 +193,24 @@ onMounted(async () => {
   font-weight: 400;
   line-height: 1;
 }
+.institution-images-section {
+  margin-bottom: var(--hemo-space-8);
+}
+.institution-images-heading {
+  align-items: flex-start;
+  margin-bottom: var(--hemo-space-3);
+}
+.section-description {
+  max-width: 540px;
+  margin-top: var(--hemo-space-2);
+  color: var(--hemo-color-text-muted);
+  font-size: 0.875rem;
+}
+.institution-images-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hemo-space-4);
+}
 .requests-section {
   margin-bottom: var(--hemo-space-8);
 }
@@ -252,6 +300,9 @@ onMounted(async () => {
   }
   .dashboard-header .btn {
     width: 100%;
+  }
+  .institution-images-grid {
+    grid-template-columns: 1fr;
   }
   .request-card {
     align-items: flex-start;
