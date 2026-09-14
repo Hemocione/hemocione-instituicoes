@@ -221,9 +221,10 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
 <template>
   <section class="certification-section">
     <div class="section-heading">
-      <div>
+      <div class="section-copy">
         <p class="section-kicker">Mobilização de doadores</p>
         <h3>Certificação</h3>
+        <p class="section-description">Reúna disponibilidades e prepare sua instituição para a próxima coleta.</p>
       </div>
       <span
         v-if="!loading"
@@ -239,11 +240,15 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
       </span>
     </div>
 
-    <p v-if="loading" class="empty-state">Carregando campanhas...</p>
+    <div v-if="loading" class="loading-state">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>Carregando campanhas...</span>
+    </div>
     <p v-else-if="loadErrorMessage" class="error-message">{{ loadErrorMessage }}</p>
     <template v-else>
       <div v-if="activeCampaign" class="active-campaign card">
-        <div>
+        <div class="campaign-summary">
+          <p class="card-kicker">Campanha em andamento</p>
           <strong>{{ activeCampaign.periodLabel }}</strong>
           <p>
             {{ formatDate(activeCampaign.startDate) }} a {{ formatDate(activeCampaign.endDate) }}
@@ -255,9 +260,15 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
       </div>
 
       <div v-if="generatedLink" class="generated-link card">
-        <strong>Link de interesse criado</strong>
+        <div class="generated-link-heading">
+          <p class="card-kicker">Compartilhe com sua rede</p>
+          <strong>Link de interesse criado</strong>
+        </div>
         <div class="link-row">
-          <input :value="generatedLink" readonly data-testid="campaign-link" aria-label="Link da campanha" />
+          <label class="field link-field">
+            Link público
+            <input :value="generatedLink" readonly data-testid="campaign-link" aria-label="Link da campanha" />
+          </label>
           <button type="button" class="btn btn-secondary" @click="copyLink">
             {{ copied ? 'Copiado' : 'Copiar' }}
           </button>
@@ -271,6 +282,7 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
       >
         <div class="form-heading">
           <div>
+            <p class="card-kicker">Nova campanha</p>
             <h4>Criar link de interesse</h4>
             <p>Compartilhe o link para reunir disponibilidades para uma coleta externa.</p>
           </div>
@@ -302,7 +314,10 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
       </form>
 
       <div v-if="campaigns.length" class="campaign-history">
-        <h4>Histórico de campanhas</h4>
+        <div class="history-heading">
+          <p class="section-kicker">Registro</p>
+          <h4>Histórico de campanhas</h4>
+        </div>
         <div v-for="campaign in campaigns" :key="campaign.id" class="card campaign-history-card">
           <div class="history-header">
             <div>
@@ -316,18 +331,31 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
             {{ responseCount(campaign) === 1 ? 'resposta' : 'respostas' }}
           </p>
           <div class="day-breakdown" aria-label="Distribuição por dia da semana">
-            <span v-for="day in days" :key="day.label">{{ day.label }}: {{ dayCount(campaign, day.keys) }}</span>
+            <span v-for="day in days" :key="day.label" class="pill pill-neutral day-chip">
+              {{ day.label }}: {{ dayCount(campaign, day.keys) }}
+            </span>
           </div>
         </div>
       </div>
-      <p v-else class="empty-state">Nenhuma campanha criada ainda.</p>
+      <div v-else class="empty-state card campaigns-empty-state">
+        <span class="empty-state-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H19v16H6.5A2.5 2.5 0 0 1 4 17.5v-11Z" stroke="currentColor" stroke-width="1.8" />
+            <path d="M4 17.5A2.5 2.5 0 0 1 6.5 15H19M8 8h7M8 11h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </span>
+        <strong class="empty-state-title">Nenhuma campanha criada ainda.</strong>
+        <span class="empty-state-description">Crie um link para começar a reunir disponibilidades.</span>
+      </div>
     </template>
   </section>
 </template>
 
 <style scoped>
 .certification-section {
-  margin-top: 36px;
+  margin-top: var(--hemo-space-8);
+  padding-top: var(--hemo-space-7);
+  border-top: 1px solid var(--hemo-color-black-15);
 }
 .section-heading,
 .active-campaign,
@@ -336,99 +364,174 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--hemo-space-4);
 }
 .section-heading {
-  margin-bottom: 14px;
+  align-items: flex-start;
+  margin-bottom: var(--hemo-space-5);
 }
 .section-kicker {
-  margin: 0 0 4px;
+  margin: 0 0 var(--hemo-space-1);
   color: var(--hemo-color-primary);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
   text-transform: uppercase;
+}
+.section-copy {
+  min-width: 0;
 }
 .section-heading h3,
 .campaign-history h4,
 .campaign-form h4 {
-  font-size: 18px;
+  font-size: 1.25rem;
+}
+.section-description {
+  max-width: 540px;
+  margin-top: var(--hemo-space-2);
+  color: var(--hemo-color-text-muted);
+  font-size: 0.875rem;
+}
+.section-heading > .pill {
+  flex-shrink: 0;
 }
 .active-campaign,
 .generated-link,
 .campaign-form,
 .campaign-history-card {
-  margin-top: 12px;
+  margin-top: var(--hemo-space-3);
+}
+.active-campaign {
+  align-items: flex-end;
+}
+.campaign-summary {
+  min-width: 0;
+}
+.card-kicker {
+  margin: 0 0 var(--hemo-space-1);
+  color: var(--hemo-color-text-muted);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  text-transform: uppercase;
 }
 .active-campaign p,
 .form-heading p,
 .history-header p {
-  margin: 5px 0 0;
-  color: var(--hemo-color-black-60);
-  font-size: 13px;
+  margin: var(--hemo-space-1) 0 0;
+  color: var(--hemo-color-text-muted);
+  font-size: 0.8125rem;
 }
 .generated-link strong {
-  font-size: 14px;
+  color: var(--hemo-color-black-100);
+  font-size: 0.9375rem;
 }
 .link-row {
-  margin-top: 10px;
-  align-items: stretch;
+  align-items: flex-end;
+  margin-top: var(--hemo-space-3);
 }
-.link-row input {
-  min-width: 0;
+.link-field {
   flex: 1;
-  padding: 9px 12px;
-  border: 1px solid var(--hemo-color-black-15);
-  border-radius: var(--hemo-radius);
+  min-width: 0;
+  margin: 0;
+}
+.link-field input {
   color: var(--hemo-color-black-80);
-  font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
+}
+.link-row .btn {
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+.campaign-form {
+  margin-top: var(--hemo-space-4);
 }
 .campaign-form h4 {
   margin: 0;
 }
 .form-heading {
-  margin-bottom: 16px;
+  margin-bottom: var(--hemo-space-5);
+}
+.form-heading > div {
+  min-width: 0;
+}
+.form-heading p:not(.card-kicker) {
+  max-width: 600px;
+  line-height: 1.45;
 }
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1.4fr;
-  gap: 12px;
+  gap: var(--hemo-space-3);
 }
 .campaign-form .error-message {
-  margin-bottom: 12px;
+  margin-bottom: var(--hemo-space-3);
+}
+.campaign-form > .btn {
+  min-width: 132px;
 }
 .campaign-history {
-  margin-top: 28px;
+  margin-top: var(--hemo-space-7);
 }
-.campaign-history h4 {
-  margin: 0 0 12px;
+.history-heading {
+  margin-bottom: var(--hemo-space-3);
+}
+.history-heading h4 {
+  margin: 0;
+}
+.history-header {
+  align-items: flex-start;
 }
 .history-header strong {
-  font-size: 14px;
+  color: var(--hemo-color-black-100);
+  font-size: 0.9375rem;
+}
+.history-header .pill {
+  flex-shrink: 0;
 }
 .response-count {
-  margin: 18px 0 10px;
+  display: flex;
+  align-items: baseline;
+  gap: var(--hemo-space-2);
+  margin: var(--hemo-space-5) 0 var(--hemo-space-3);
   color: var(--hemo-color-black-80);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .response-count strong {
   color: var(--hemo-color-black-100);
-  font-size: 20px;
+  font-size: 1.5rem;
+  line-height: 1;
 }
 .day-breakdown {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
-  color: var(--hemo-color-black-60);
-  font-size: 12px;
+  gap: var(--hemo-space-2);
+}
+.day-chip {
+  min-height: 24px;
+  padding: 4px 8px;
+  font-size: 0.6875rem;
+}
+.campaigns-empty-state {
+  margin-top: var(--hemo-space-4);
+}
+.empty-state-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 @media (max-width: 560px) {
+  .section-heading,
   .active-campaign,
   .history-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .section-heading > .pill,
+  .history-header .pill {
+    align-self: flex-start;
   }
   .form-grid {
     grid-template-columns: 1fr;
