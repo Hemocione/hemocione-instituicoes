@@ -1,10 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { logout, redirectToLogin } from './auth'
 import OrgSwitcher from './components/OrgSwitcher.vue'
 
 const route = useRoute()
 const isPublicRoute = computed(() => route.meta.public === true)
+
+function handleLogout() {
+  logout()
+  redirectToLogin()
+}
 </script>
 
 <template>
@@ -31,6 +37,9 @@ const isPublicRoute = computed(() => route.meta.public === true)
       </nav>
       <div v-if="!isPublicRoute" class="topbar-actions">
         <OrgSwitcher />
+        <button type="button" class="btn btn-secondary" data-testid="logout-button" @click="handleLogout">
+          Sair
+        </button>
       </div>
     </div>
   </header>
@@ -127,6 +136,7 @@ const isPublicRoute = computed(() => route.meta.public === true)
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  gap: var(--hemo-space-2);
   margin-left: auto;
 }
 
