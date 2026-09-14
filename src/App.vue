@@ -24,7 +24,8 @@ const isPublicRoute = computed(() => route.meta.public === true)
           <span>instituições</span>
         </span>
       </div>
-      <nav v-if="!isPublicRoute" class="nav" aria-label="Navegação principal">
+      <!-- TODO: reativar quando Meus eventos estiver pronto e o dashboard existir. -->
+      <nav v-if="false" class="nav" aria-label="Navegação principal">
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/eventos">Meus eventos</RouterLink>
       </nav>
@@ -126,6 +127,7 @@ const isPublicRoute = computed(() => route.meta.public === true)
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 @media (max-width: 640px) {
