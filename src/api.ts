@@ -112,6 +112,7 @@ export const idApi = {
       ...membership.institution,
       id: membership.institution.id,
       name: membership.institution.name,
+      role: membership.role,
     }))
   },
 

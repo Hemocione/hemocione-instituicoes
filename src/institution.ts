@@ -3,6 +3,9 @@ import { ref } from 'vue'
 export type Institution = {
   id: string
   name: string
+  role?: string
+  logo?: string
+  banner?: string
   [key: string]: unknown
 }
 
