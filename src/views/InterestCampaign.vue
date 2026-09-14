@@ -138,8 +138,13 @@ onUnmounted(() => {
 
 <template>
   <main class="page interest-page">
-    <p v-if="loading" class="empty-state">Carregando campanha...</p>
-    <p v-else-if="errorMessage && !campaign" class="error-message">{{ errorMessage }}</p>
+    <div v-if="loading" class="loading-state">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>Carregando campanha...</span>
+    </div>
+    <div v-else-if="errorMessage && !campaign" class="card campaign-error">
+      <p class="error-message">{{ errorMessage }}</p>
+    </div>
     <article v-else-if="campaign" class="public-campaign card">
       <img
         v-if="campaign.institutionBannerUrl"
@@ -149,22 +154,30 @@ onUnmounted(() => {
       />
 
       <div class="campaign-content">
-        <img
-          v-if="campaign.institutionLogoUrl"
-          :src="campaign.institutionLogoUrl"
-          :alt="`Logo da ${campaign.institutionName}`"
-          class="campaign-logo"
-        />
-        <p class="campaign-kicker">Campanha de interesse</p>
-        <h1>{{ campaign.institutionName }}</h1>
-        <p class="campaign-period">{{ campaign.periodLabel }}</p>
+        <div class="campaign-heading">
+          <img
+            v-if="campaign.institutionLogoUrl"
+            :src="campaign.institutionLogoUrl"
+            :alt="`Logo da ${campaign.institutionName}`"
+            class="campaign-logo"
+          />
+          <div>
+            <p class="campaign-kicker">Campanha de interesse</p>
+            <h1>{{ campaign.institutionName }}</h1>
+            <p class="campaign-period">{{ campaign.periodLabel }}</p>
+          </div>
+        </div>
 
         <template v-if="step === 'intro'">
           <div class="campaign-question">
-            <span class="question-label">Pergunta</span>
+            <div class="question-heading">
+              <span class="question-icon" aria-hidden="true">?</span>
+              <span class="question-label">Pergunta</span>
+            </div>
             <p>{{ campaign.questionText }}</p>
           </div>
           <p v-if="!campaign.isAcceptingResponses" class="closed-message">
+            <span class="pill pill-warning">Encerrada</span>
             Essa campanha não está mais aceitando respostas.
           </p>
           <button
@@ -179,6 +192,10 @@ onUnmounted(() => {
         </template>
 
         <form v-else-if="step === 'selection'" class="response-form" @submit.prevent="submitResponse">
+          <div class="response-heading">
+            <p class="campaign-kicker">Sua disponibilidade</p>
+            <h2>Escolha os dias disponíveis</h2>
+          </div>
           <label class="field" for="available-days">
             Quais dias da semana você tem disponíveis?
             <select id="available-days" v-model="selectedDays" multiple size="7" data-testid="days-select">
@@ -199,6 +216,7 @@ onUnmounted(() => {
 
         <section v-else class="confirmation" data-testid="confirmation-state">
           <p class="confirmation-mark" aria-hidden="true">✓</p>
+          <p class="campaign-kicker">Disponibilidade registrada</p>
           <h2>Obrigado pelo seu interesse!</h2>
           <p>Sua disponibilidade foi registrada. Compartilhe esta campanha com mais pessoas.</p>
           <a :href="whatsappUrl" target="_blank" rel="noopener" class="btn btn-secondary campaign-action">
@@ -213,29 +231,37 @@ onUnmounted(() => {
 <style scoped>
 .interest-page {
   max-width: 620px;
-  padding-top: 24px;
+  padding-top: var(--hemo-space-7);
 }
 .public-campaign {
   overflow: hidden;
   padding: 0;
+  border-radius: var(--hemo-radius-lg);
 }
 .campaign-banner {
   display: block;
   width: 100%;
-  max-height: 220px;
+  height: 220px;
   object-fit: cover;
+  background: var(--hemo-color-secondary);
 }
 .campaign-content {
-  padding: 28px;
+  padding: var(--hemo-space-8);
+}
+.campaign-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--hemo-space-4);
 }
 .campaign-logo {
+  flex: 0 0 64px;
   width: 64px;
   height: 64px;
   object-fit: contain;
-  border: 1px solid var(--hemo-color-black-15);
-  border-radius: var(--hemo-radius);
+  border: 1px solid var(--hemo-color-border);
+  border-radius: var(--hemo-radius-lg);
   background: var(--hemo-color-white);
-  margin-bottom: 18px;
+  padding: var(--hemo-space-2);
 }
 .campaign-kicker,
 .question-label {
@@ -247,49 +273,87 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 .campaign-content h1 {
-  font-size: 28px;
+  font-size: 1.875rem;
   line-height: 1.15;
 }
 .campaign-period {
-  margin: 8px 0 26px;
-  color: var(--hemo-color-black-60);
-  font-size: 15px;
+  margin: var(--hemo-space-2) 0 0;
+  color: var(--hemo-color-text-muted);
+  font-size: 0.9375rem;
 }
 .campaign-question {
-  margin-bottom: 20px;
-  padding: 18px;
-  border-left: 3px solid var(--hemo-color-primary);
+  margin: var(--hemo-space-7) 0 var(--hemo-space-5);
+  padding: var(--hemo-space-5);
+  border: 1px solid var(--hemo-color-black-15);
+  border-left: 4px solid var(--hemo-color-primary);
+  border-radius: 0 var(--hemo-radius) var(--hemo-radius) 0;
   background: var(--hemo-color-black-5);
+}
+.question-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--hemo-space-2);
+  margin-bottom: var(--hemo-space-2);
+}
+.question-heading .question-label {
+  margin: 0;
+}
+.question-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--hemo-radius-full);
+  background: var(--hemo-color-danger-soft);
+  color: var(--hemo-color-primary);
+  font-size: 0.875rem;
+  font-weight: 700;
 }
 .campaign-question p {
   margin: 0;
-  font-size: 18px;
+  color: var(--hemo-color-black-100);
+  font-size: 1.125rem;
+  font-weight: 500;
   line-height: 1.45;
 }
 .campaign-action {
   width: 100%;
 }
 .closed-message {
-  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--hemo-space-2);
+  margin: 0 0 var(--hemo-space-4);
   color: var(--hemo-color-black-80);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .response-form .field {
-  margin-bottom: 6px;
+  margin-bottom: var(--hemo-space-2);
 }
 .response-form select {
-  padding: 6px;
+  min-height: 184px;
+  padding: var(--hemo-space-2);
 }
 .response-form option {
-  padding: 7px 8px;
+  padding: var(--hemo-space-2);
+}
+.response-heading {
+  margin-bottom: var(--hemo-space-5);
+}
+.response-heading .campaign-kicker {
+  margin-bottom: var(--hemo-space-1);
+}
+.response-heading h2 {
+  font-size: 1.25rem;
 }
 .selection-hint {
-  margin: 0 0 14px;
-  color: var(--hemo-color-black-60);
-  font-size: 12px;
+  margin: 0 0 var(--hemo-space-4);
+  color: var(--hemo-color-text-muted);
+  font-size: 0.75rem;
 }
 .response-form .error-message {
-  margin-bottom: 14px;
+  margin-bottom: var(--hemo-space-4);
 }
 .confirmation {
   text-align: center;
@@ -299,29 +363,49 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   place-items: center;
-  margin: 0 auto 16px;
-  border-radius: 50%;
-  background: rgba(42, 199, 105, 0.14);
-  color: #1b8f4c;
-  font-size: 28px;
+  margin: 0 auto var(--hemo-space-4);
+  border-radius: var(--hemo-radius-full);
+  background: var(--hemo-color-success-soft);
+  color: var(--hemo-color-success-text);
+  font-size: 1.75rem;
   font-weight: 700;
 }
-.confirmation h2 {
-  font-size: 22px;
+.confirmation .campaign-kicker {
+  margin-bottom: var(--hemo-space-2);
 }
-.confirmation > p:not(.confirmation-mark) {
-  margin: 10px 0 20px;
+.confirmation h2 {
+  font-size: 1.375rem;
+}
+.confirmation > p:not(.confirmation-mark):not(.campaign-kicker) {
+  margin: var(--hemo-space-2) 0 var(--hemo-space-5);
   color: var(--hemo-color-black-80);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.5;
+}
+.campaign-error {
+  padding: var(--hemo-space-4);
+}
+.campaign-error .error-message {
+  margin: 0;
 }
 
 @media (max-width: 520px) {
   .campaign-content {
-    padding: 22px 18px;
+    padding: var(--hemo-space-6) var(--hemo-space-4);
+  }
+  .campaign-banner {
+    height: 160px;
+  }
+  .campaign-heading {
+    gap: var(--hemo-space-3);
+  }
+  .campaign-logo {
+    flex-basis: 52px;
+    width: 52px;
+    height: 52px;
   }
   .campaign-content h1 {
-    font-size: 24px;
+    font-size: 1.5rem;
   }
 }
 </style>

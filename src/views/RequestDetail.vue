@@ -42,24 +42,56 @@ onMounted(async () => {
 <template>
   <main class="page detail">
     <RouterLink to="/" class="back-link">&larr; voltar</RouterLink>
-    <p v-if="loading" class="empty-state">Carregando...</p>
+    <div v-if="loading" class="loading-state">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>Carregando pedido...</span>
+    </div>
     <p v-else-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-    <p v-else-if="!request" class="empty-state">Pedido não encontrado.</p>
+    <div v-else-if="!request" class="empty-state card detail-state">
+      <span class="empty-state-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M7 4h10a2 2 0 0 1 2 2v13H5V6a2 2 0 0 1 2-2ZM8 8h8M8 12h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="m15 15 4 4M19 15l-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+      </span>
+      <strong class="empty-state-title">Pedido não encontrado.</strong>
+      <span class="empty-state-description">Verifique o endereço ou volte ao painel para consultar seus pedidos.</span>
+    </div>
     <template v-else>
-      <div class="card">
+      <div class="card detail-card">
         <div class="detail-header">
-          <h2>Etapas e Contrapropostas</h2>
+          <div>
+            <p class="page-kicker">Pedido {{ request.id }}</p>
+            <h1>Etapas e contrapropostas</h1>
+          </div>
           <span class="pill" :class="`pill-${statusTone(request.status)}`">{{ statusLabel(request.status) }}</span>
         </div>
-        <p v-if="request.note" class="note">Nota: {{ request.note }}</p>
+        <p v-if="request.note" class="note">
+          <strong>Nota</strong>
+          <span>{{ request.note }}</span>
+        </p>
 
         <ol class="timeline">
-          <li class="done">Pedido enviado</li>
+          <li class="done">
+            <div class="timeline-content">
+              <strong>Pedido enviado</strong>
+              <span class="pill pill-success timeline-badge">Concluído</span>
+            </div>
+          </li>
           <li v-if="request.counterProposal" :class="{ done: request.status !== 'counter_proposed' }">
-            Contraproposta —
-            <span v-if="request.status === 'counter_proposed'">aguardando resposta</span>
-            <span v-else-if="request.status === 'counter_proposal_declined'">recusada</span>
-            <span v-else>aceita</span>
+            <div class="timeline-content">
+              <strong>Contraproposta</strong>
+              <span
+                v-if="request.status === 'counter_proposed'"
+                class="pill pill-warning timeline-badge"
+              >
+                aguardando resposta
+              </span>
+              <span v-else-if="request.status === 'counter_proposal_declined'" class="pill pill-danger timeline-badge">
+                recusada
+              </span>
+              <span v-else class="pill pill-success timeline-badge">aceita</span>
+            </div>
             <span v-if="request.counterProposal.proposedDates?.[0]">
               ({{ request.counterProposal.proposedDates[0].date }}, {{ request.counterProposal.proposedDates[0].startTime }})
             </span>
@@ -68,14 +100,28 @@ onMounted(async () => {
             v-if="request.counterProposal?.needsTechnicalVisit && ['awaiting_technical_visit', 'technical_visit_confirmed', 'scheduled'].includes(request.status)"
             :class="{ done: request.status !== 'awaiting_technical_visit' }"
           >
-            Visita técnica —
-            <span v-if="request.status === 'awaiting_technical_visit'">aguardando veredito</span>
-            <span v-else>confirmada</span>
+            <div class="timeline-content">
+              <strong>Visita técnica</strong>
+              <span v-if="request.status === 'awaiting_technical_visit'" class="pill pill-warning timeline-badge">
+                aguardando veredito
+              </span>
+              <span v-else class="pill pill-success timeline-badge">confirmada</span>
+            </div>
           </li>
           <li :class="{ done: request.status === 'scheduled' }">
-            Evento e inscrições
-            <a v-if="request.eventSlug" :href="`${config.hemocioneDigitalEventUrl}/event/${request.eventSlug}`" target="_blank">
-              — link de inscrição
+            <div class="timeline-content">
+              <strong>Evento e inscrições</strong>
+              <span v-if="request.status === 'scheduled'" class="pill pill-success timeline-badge">Agendado</span>
+              <span v-else class="pill pill-neutral timeline-badge">Próxima etapa</span>
+            </div>
+            <a
+              v-if="request.eventSlug"
+              :href="`${config.hemocioneDigitalEventUrl}/event/${request.eventSlug}`"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-secondary timeline-link"
+            >
+              Link de inscrição <span aria-hidden="true">↗</span>
             </a>
           </li>
         </ol>
@@ -93,32 +139,60 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.detail {
+  padding-top: var(--hemo-space-7);
+}
+.page-kicker {
+  margin: 0 0 var(--hemo-space-1);
+  color: var(--hemo-color-primary);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
 .detail-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
+  gap: var(--hemo-space-4);
+  margin-bottom: var(--hemo-space-5);
+}
+.detail-header h1 {
+  font-size: 1.5rem;
+}
+.detail-header .pill {
+  flex-shrink: 0;
 }
 .note {
-  background: var(--hemo-color-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--hemo-space-1);
+  margin: 0 0 var(--hemo-space-5);
+  padding: var(--hemo-space-3) var(--hemo-space-4);
+  border: 1px solid var(--hemo-color-black-15);
   border-radius: var(--hemo-radius);
-  padding: 10px 12px;
-  margin: 16px 0 0;
-  font-size: 14px;
+  background: var(--hemo-color-secondary);
   color: var(--hemo-color-black-80);
+  font-size: 0.875rem;
+}
+.note strong {
+  color: var(--hemo-color-black-100);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .timeline {
   list-style: none;
   padding: 0;
-  margin: 20px 0 0;
+  margin: 0;
 }
 .timeline li {
-  padding: 10px 0 10px 24px;
-  border-left: 2px solid var(--hemo-color-black-15);
   position: relative;
+  padding: var(--hemo-space-3) 0 var(--hemo-space-3) var(--hemo-space-6);
+  border-left: 2px solid var(--hemo-color-black-15);
   color: var(--hemo-color-black-60);
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .timeline li:last-child {
   border-left-color: transparent;
@@ -130,18 +204,64 @@ onMounted(async () => {
 .timeline li::before {
   content: '';
   position: absolute;
-  left: -7px;
-  top: 14px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+  left: -8px;
+  top: 18px;
+  width: 14px;
+  height: 14px;
+  border: 3px solid var(--hemo-color-surface);
+  border-radius: var(--hemo-radius-full);
   background: var(--hemo-color-black-15);
+  box-shadow: 0 0 0 1px var(--hemo-color-black-15);
 }
 .timeline li.done::before {
   background: var(--hemo-color-success);
+  box-shadow: 0 0 0 1px var(--hemo-color-success);
 }
-.timeline a {
-  color: var(--hemo-color-link);
-  font-weight: 500;
+.timeline-content {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--hemo-space-2);
+}
+.timeline-content strong {
+  color: var(--hemo-color-black-100);
+  font-size: 0.9375rem;
+}
+.timeline-badge {
+  min-height: 22px;
+  padding: 3px 8px;
+  font-size: 0.6875rem;
+}
+.timeline li > span:not(.timeline-badge) {
+  display: block;
+  margin-top: var(--hemo-space-1);
+  color: var(--hemo-color-text-muted);
+  font-size: 0.8125rem;
+}
+.timeline-link {
+  min-height: 34px;
+  margin-top: var(--hemo-space-2);
+  padding: 7px var(--hemo-space-3);
+  font-size: 0.75rem;
+}
+.timeline-link span {
+  font-size: 0.9375rem;
+}
+.detail-state {
+  margin: 0;
+}
+.empty-state-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 520px) {
+  .detail-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .detail-header .pill {
+    align-self: flex-start;
+  }
 }
 </style>
