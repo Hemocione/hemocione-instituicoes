@@ -1,6 +1,10 @@
 import { ref } from 'vue'
 
-export type Institution = { id: string; name: string }
+export type Institution = {
+  id: string
+  name: string
+  [key: string]: unknown
+}
 
 export const institutions = ref<Institution[]>([])
 export const activeInstitutionId = ref<string | null>(
@@ -27,4 +31,10 @@ export function setActiveInstitution(id: string) {
 
 export function activeInstitution() {
   return institutions.value.find((i) => i.id === activeInstitutionId.value) ?? null
+}
+
+export function institutionHasCertification(institution: Institution | null | undefined): boolean {
+  if (!institution) return false
+
+  return institution.hasCollectionBadge === true || institution.certificationStatus === 'certified'
 }

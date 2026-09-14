@@ -5,12 +5,34 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hemocione Instituições</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Hemocione" />
+    <meta property="og:title" content="Hemocione | Portal de Instituições" />
+    <meta
+      property="og:description"
+      content="Acompanhe pedidos de coleta externa e a certificação da sua instituição no Hemocione."
+    />
+    <meta
+      property="og:image"
+      content="https://cdn.hemocione.com.br/events/uploads/1699940076138-logo_hemocione_fb-2(1).png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="app">
-      <div id="app-loading" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:100dvh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8f8f8;">
-        <div style="width:36px;height:36px;border-radius:50%;border:3px solid #e8e8e8;border-top-color:#bb0a08;animation:app-loading-spin 0.8s linear infinite;"></div>
-        <span style="font-size:14px;color:#52575c;">Carregando hemocione instituições…</span>
+      <div
+        id="app-loading"
+        class="loading-state"
+        role="status"
+        aria-live="polite"
+        style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:100dvh;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8f8f8;"
+      >
+        <div
+          class="loading-spinner"
+          aria-hidden="true"
+          style="width:36px;height:36px;border-radius:50%;border:3px solid #e8e8e8;border-top-color:#bb0a08;animation:app-loading-spin 0.8s linear infinite;"
+        ></div>
+        <span class="loading-text" style="font-size:14px;color:#52575c;">Carregando hemocione instituições…</span>
       </div>
     </div>
     <style>
