@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { idApi, type InterestCampaign, type InterestCampaignPayload } from '../api'
-import { institutionHasCertification, type Institution } from '../institution'
+import {
+  certificationStatusLabel,
+  certificationStatusTone,
+  effectiveCampaignStatus,
+  getCertificationStatus,
+} from '../certification'
+import type { Institution } from '../institution'
 
 const props = defineProps<{
   institutionId: string
@@ -21,14 +27,10 @@ const durationDays = ref(7)
 const startDate = ref(today())
 
 const activeCampaign = computed(
-  () => campaigns.value.find((campaign) => ['scheduled', 'active'].includes(effectiveStatus(campaign))) ?? null
+  () => campaigns.value.find((campaign) => ['scheduled', 'active'].includes(effectiveCampaignStatus(campaign))) ?? null
 )
 
-const certificationStatus = computed(() => {
-  if (institutionHasCertification(props.institution)) return 'certified'
-  if (activeCampaign.value) return 'in-progress'
-  return 'unverified'
-})
+const certificationStatus = computed(() => getCertificationStatus(props.institution, campaigns.value))
 
 function today() {
   const date = new Date()
@@ -36,11 +38,6 @@ function today() {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
-}
-
-function effectiveStatus(campaign: InterestCampaign) {
-  const status = campaign.effectiveStatus
-  return String(typeof status === 'string' ? status : campaign.status).toLowerCase()
 }
 
 function statusLabel(status: string) {
@@ -230,13 +227,9 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
         v-if="!loading"
         class="pill"
         data-testid="certification-status"
-        :class="{
-          'pill-success': certificationStatus === 'certified',
-          'pill-info': certificationStatus === 'in-progress',
-          'pill-neutral': certificationStatus === 'unverified',
-        }"
+        :class="`pill-${certificationStatusTone(certificationStatus)}`"
       >
-        {{ certificationStatus === 'certified' ? 'Selo concedido' : certificationStatus === 'in-progress' ? 'Em processo de certificação' : 'Não verificado' }}
+        {{ certificationStatusLabel(certificationStatus) }}
       </span>
     </div>
 
@@ -324,7 +317,7 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
               <strong>{{ campaign.periodLabel }}</strong>
               <p>{{ formatDate(campaign.startDate) }} a {{ formatDate(campaign.endDate) }}</p>
             </div>
-            <span class="pill pill-neutral">{{ statusLabel(effectiveStatus(campaign)) }}</span>
+            <span class="pill pill-neutral">{{ statusLabel(effectiveCampaignStatus(campaign)) }}</span>
           </div>
           <p class="response-count">
             <strong>{{ responseCount(campaign) }}</strong>
