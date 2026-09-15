@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { coletaApi, idApi } from '../api'
+import { coletaApi, idApi, type InterestCampaign } from '../api'
 import { institutions, activeInstitutionId, setInstitutions, activeInstitution } from '../institution'
 import { config } from '../config'
 import { statusLabel, statusTone } from '../statusLabels'
-import CertificationSection from '../components/CertificationSection.vue'
+import { certificationStatusLabel, certificationStatusTone, getCertificationStatus } from '../certification'
 import InstitutionImageUploadField from '../components/InstitutionImageUploadField.vue'
 
 type CollectionRequestSummary = { id: string; status: string }
 
 const requests = ref<CollectionRequestSummary[]>([])
+const certificationCampaigns = ref<InterestCampaign[]>([])
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
+
+const certificationStatus = computed(() => getCertificationStatus(activeInstitution(), certificationCampaigns.value))
 
 function newRequestUrl(institutionId: string) {
   return `${config.hemocioneColetaUrl}/agendar?institutionId=${encodeURIComponent(institutionId)}`
@@ -21,6 +24,14 @@ function newRequestUrl(institutionId: string) {
 async function loadRequests(institutionId: string) {
   const requestData = await coletaApi.listCollectionRequests(institutionId)
   requests.value = requestData.collectionRequests ?? requestData.items ?? requestData
+}
+
+async function loadCertificationCampaigns(institutionId: string) {
+  try {
+    certificationCampaigns.value = await idApi.listInterestCampaigns(institutionId)
+  } catch {
+    certificationCampaigns.value = []
+  }
 }
 
 function updateInstitutionImage(kind: 'logo' | 'banner', url: string) {
@@ -34,7 +45,10 @@ onMounted(async () => {
     setInstitutions(data)
 
     if (activeInstitutionId.value) {
-      await loadRequests(activeInstitutionId.value)
+      await Promise.all([
+        loadRequests(activeInstitutionId.value),
+        loadCertificationCampaigns(activeInstitutionId.value),
+      ])
     }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Erro desconhecido'
@@ -140,11 +154,31 @@ onMounted(async () => {
           </div>
         </section>
 
-        <CertificationSection
-          v-if="activeInstitutionId"
-          :institution-id="activeInstitutionId"
-          :institution="activeInstitution() ?? undefined"
-        />
+        <section v-if="activeInstitutionId" class="certification-summary-section" aria-labelledby="certification-summary-title">
+          <div class="card certification-summary" data-testid="certification-summary">
+            <div class="certification-summary-copy">
+              <p class="section-kicker">Mobilização de doadores</p>
+              <h2 id="certification-summary-title">Certificação</h2>
+              <p class="section-description">Consulte o selo da instituição e acompanhe seus links de interesse.</p>
+            </div>
+            <div class="certification-summary-action">
+              <span
+                class="pill"
+                data-testid="dashboard-certification-status"
+                :class="`pill-${certificationStatusTone(certificationStatus)}`"
+              >
+                {{ certificationStatusLabel(certificationStatus) }}
+              </span>
+              <RouterLink
+                :to="`/${activeInstitutionId}/certificacao`"
+                class="btn btn-secondary"
+                data-testid="certification-summary-link"
+              >
+                Ver certificação
+              </RouterLink>
+            </div>
+          </div>
+        </section>
       </template>
     </template>
   </main>
@@ -213,6 +247,27 @@ onMounted(async () => {
 }
 .requests-section {
   margin-bottom: var(--hemo-space-8);
+}
+.certification-summary-section {
+  margin-top: var(--hemo-space-8);
+}
+.certification-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hemo-space-6);
+}
+.certification-summary-copy {
+  min-width: 0;
+}
+.certification-summary-copy h2 {
+  font-size: 1.25rem;
+}
+.certification-summary-action {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--hemo-space-3);
 }
 .section-heading {
   display: flex;
@@ -311,6 +366,15 @@ onMounted(async () => {
   .request-card-action {
     width: 100%;
     justify-content: space-between;
+  }
+  .certification-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .certification-summary-action {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
   }
 }
 </style>
