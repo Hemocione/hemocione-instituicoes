@@ -22,9 +22,7 @@ import InstitutionKindIcon from './InstitutionKindIcon.vue'
 <style scoped>
 .org-switcher-select,
 .org-name {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--hemo-space-2);
+  display: block;
   max-width: 240px;
   min-height: 38px;
   padding: 8px 12px;
@@ -35,6 +33,11 @@ import InstitutionKindIcon from './InstitutionKindIcon.vue'
   font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
+}
+.org-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hemo-space-2);
 }
 .org-switcher-select {
   min-width: 180px;
