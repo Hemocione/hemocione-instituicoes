@@ -129,13 +129,13 @@ function responseCount(campaign: InterestCampaign) {
 }
 
 const days = [
-  { keys: ['monday', 'segunda', 'segunda-feira'], label: 'Segunda' },
-  { keys: ['tuesday', 'terça', 'terca', 'terça-feira', 'terca-feira'], label: 'Terça' },
-  { keys: ['wednesday', 'quarta', 'quarta-feira'], label: 'Quarta' },
-  { keys: ['thursday', 'quinta', 'quinta-feira'], label: 'Quinta' },
-  { keys: ['friday', 'sexta', 'sexta-feira'], label: 'Sexta' },
-  { keys: ['saturday', 'sábado', 'sabado'], label: 'Sábado' },
-  { keys: ['sunday', 'domingo'], label: 'Domingo' },
+  { keys: ['mon', 'monday', 'segunda', 'segunda-feira'], label: 'Segunda' },
+  { keys: ['tue', 'tuesday', 'terça', 'terca', 'terça-feira', 'terca-feira'], label: 'Terça' },
+  { keys: ['wed', 'wednesday', 'quarta', 'quarta-feira'], label: 'Quarta' },
+  { keys: ['thu', 'thursday', 'quinta', 'quinta-feira'], label: 'Quinta' },
+  { keys: ['fri', 'friday', 'sexta', 'sexta-feira'], label: 'Sexta' },
+  { keys: ['sat', 'saturday', 'sábado', 'sabado'], label: 'Sábado' },
+  { keys: ['sun', 'sunday', 'domingo'], label: 'Domingo' },
 ]
 
 function dayDistribution(campaign: InterestCampaign) {

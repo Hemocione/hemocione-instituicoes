@@ -17,13 +17,13 @@ const selectedDays = ref<string[]>([])
 const previousTitle = ref('')
 
 const weekDays = [
-  { value: 'monday', label: 'Segunda-feira' },
-  { value: 'tuesday', label: 'Terça-feira' },
-  { value: 'wednesday', label: 'Quarta-feira' },
-  { value: 'thursday', label: 'Quinta-feira' },
-  { value: 'friday', label: 'Sexta-feira' },
-  { value: 'saturday', label: 'Sábado' },
-  { value: 'sunday', label: 'Domingo' },
+  { value: 'mon', label: 'Segunda-feira' },
+  { value: 'tue', label: 'Terça-feira' },
+  { value: 'wed', label: 'Quarta-feira' },
+  { value: 'thu', label: 'Quinta-feira' },
+  { value: 'fri', label: 'Sexta-feira' },
+  { value: 'sat', label: 'Sábado' },
+  { value: 'sun', label: 'Domingo' },
 ]
 
 const validDayValues = new Set(weekDays.map((day) => day.value))

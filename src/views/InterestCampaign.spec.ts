@@ -71,7 +71,7 @@ describe('InterestCampaign', () => {
 
     expect(wrapper.findAll('[data-testid^="day-toggle-"]')).toHaveLength(7)
 
-    const monday = wrapper.get('[data-testid="day-toggle-monday"]')
+    const monday = wrapper.get('[data-testid="day-toggle-mon"]')
     expect(monday.attributes('type')).toBe('button')
     expect(monday.attributes('aria-pressed')).toBe('false')
     expect(wrapper.find('select').exists()).toBe(false)
@@ -87,16 +87,16 @@ describe('InterestCampaign', () => {
     const fetchMock = stubFetch()
     const wrapper = await mountPage()
 
-    await wrapper.get('[data-testid="day-toggle-monday"]').trigger('click')
-    await wrapper.get('[data-testid="day-toggle-friday"]').trigger('click')
+    await wrapper.get('[data-testid="day-toggle-mon"]').trigger('click')
+    await wrapper.get('[data-testid="day-toggle-fri"]').trigger('click')
     await wrapper.get('.response-form').trigger('submit')
     await flushPromises()
 
     expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBe(
-      JSON.stringify(['monday', 'friday'])
+      JSON.stringify(['mon', 'fri'])
     )
     expect(redirectToLogin).toHaveBeenCalledTimes(1)
-    expect(redirectToLogin).toHaveBeenCalledWith({ resume_days: 'monday,friday' })
+    expect(redirectToLogin).toHaveBeenCalledWith({ resume_days: 'mon,fri' })
     expect(postCalls(fetchMock)).toHaveLength(0)
   })
 
@@ -105,8 +105,8 @@ describe('InterestCampaign', () => {
     const fetchMock = stubFetch()
     const wrapper = await mountPage()
 
-    await wrapper.get('[data-testid="day-toggle-tuesday"]').trigger('click')
-    await wrapper.get('[data-testid="day-toggle-saturday"]').trigger('click')
+    await wrapper.get('[data-testid="day-toggle-tue"]').trigger('click')
+    await wrapper.get('[data-testid="day-toggle-sat"]').trigger('click')
     await wrapper.get('.response-form').trigger('submit')
     await flushPromises()
 
@@ -115,7 +115,7 @@ describe('InterestCampaign', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
-        body: JSON.stringify({ daysAvailable: ['tuesday', 'saturday'] }),
+        body: JSON.stringify({ daysAvailable: ['tue', 'sat'] }),
       })
     )
     expect(localStorage.getItem('interest_campaign_responded:campaign-1')).toBe('true')
@@ -128,21 +128,39 @@ describe('InterestCampaign', () => {
     expect(confirmation.get('a').attributes('href')).toMatch(/^https:\/\/wa\.me\/\?text=/)
   })
 
+  it('envia daysAvailable com códigos de 3 letras (regressão 400)', async () => {
+    token.value = 'test-token'
+    const fetchMock = stubFetch()
+    const wrapper = await mountPage()
+
+    await wrapper.get('[data-testid="day-toggle-mon"]').trigger('click')
+    await wrapper.get('.response-form').trigger('submit')
+    await flushPromises()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://id-api.test/interest-campaigns/campaign-1/respond',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ daysAvailable: ['mon'] }),
+      })
+    )
+  })
+
   it('prefills from resume_days on return, removes only that param, and clears pending', async () => {
     token.value = 'test-token'
-    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['sunday']))
+    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['sun']))
     window.history.replaceState(
       window.history.state,
       '',
-      '/interesse/campaign-1?keep=1&resume_days=monday,friday'
+      '/interesse/campaign-1?keep=1&resume_days=mon,fri'
     )
     const fetchMock = stubFetch()
 
     const wrapper = await mountPage()
 
-    expect(wrapper.get('[data-testid="day-toggle-monday"]').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.get('[data-testid="day-toggle-friday"]').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.get('[data-testid="day-toggle-sunday"]').attributes('aria-pressed')).toBe('false')
+    expect(wrapper.get('[data-testid="day-toggle-mon"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="day-toggle-fri"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="day-toggle-sun"]').attributes('aria-pressed')).toBe('false')
     expect(postCalls(fetchMock)).toHaveLength(0)
 
     const params = new URLSearchParams(window.location.search)
@@ -153,13 +171,13 @@ describe('InterestCampaign', () => {
 
   it('prefills from the pending storage fallback when the URL has no resume_days', async () => {
     token.value = 'test-token'
-    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['wednesday']))
+    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['wed']))
     const fetchMock = stubFetch()
 
     const wrapper = await mountPage()
 
-    expect(wrapper.get('[data-testid="day-toggle-wednesday"]').attributes('aria-pressed')).toBe('true')
-    expect(wrapper.get('[data-testid="day-toggle-monday"]').attributes('aria-pressed')).toBe('false')
+    expect(wrapper.get('[data-testid="day-toggle-wed"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="day-toggle-mon"]').attributes('aria-pressed')).toBe('false')
     expect(postCalls(fetchMock)).toHaveLength(0)
     expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBeNull()
   })
@@ -178,11 +196,11 @@ describe('InterestCampaign', () => {
 
   it('does not restore a selection and shows the closed state when the campaign stopped accepting responses', async () => {
     token.value = 'test-token'
-    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['monday']))
+    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['mon']))
     window.history.replaceState(
       window.history.state,
       '',
-      '/interesse/campaign-1?resume_days=monday,friday'
+      '/interesse/campaign-1?resume_days=mon,fri'
     )
     const fetchMock = stubFetch({ isAcceptingResponses: false })
 
@@ -207,7 +225,7 @@ describe('InterestCampaign', () => {
     expect(postCalls(fetchMock)).toHaveLength(0)
     expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBeNull()
 
-    await wrapper.get('[data-testid="day-toggle-monday"]').trigger('click')
+    await wrapper.get('[data-testid="day-toggle-mon"]').trigger('click')
     expect(wrapper.find('.form-error').exists()).toBe(false)
   })
 
