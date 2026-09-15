@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { institutions, activeInstitutionId, setActiveInstitution } from '../institution'
+import InstitutionKindIcon from './InstitutionKindIcon.vue'
 </script>
 
 <template>
@@ -13,14 +14,17 @@ import { institutions, activeInstitutionId, setActiveInstitution } from '../inst
     <option v-for="inst in institutions" :key="inst.id" :value="inst.id">{{ inst.name }}</option>
   </select>
   <strong v-else-if="institutions.length === 1" class="org-name" :title="institutions[0].name">
-    {{ institutions[0].name }}
+    <InstitutionKindIcon :kind="institutions[0].kind" />
+    <span>{{ institutions[0].name }}</span>
   </strong>
 </template>
 
 <style scoped>
 .org-switcher-select,
 .org-name {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--hemo-space-2);
   max-width: 240px;
   min-height: 38px;
   padding: 8px 12px;
@@ -46,6 +50,12 @@ import { institutions, activeInstitutionId, setActiveInstitution } from '../inst
   border-color: var(--hemo-color-black-70);
 }
 .org-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.org-name > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
