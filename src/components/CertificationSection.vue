@@ -1,12 +1,50 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { idApi, type InterestCampaign, type InterestCampaignPayload } from '../api'
-import { institutionHasCertification, type Institution } from '../institution'
+import {
+  certificationStatusLabel,
+  certificationStatusTone,
+  effectiveCampaignStatus,
+  getCertificationStatus,
+} from '../certification'
+import type { Institution } from '../institution'
 
 const props = defineProps<{
   institutionId: string
   institution?: Institution
 }>()
+
+const MONTH_NAMES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+] as const
+
+function formatPeriod(date: Date) {
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`
+}
+
+function buildPeriodOptions(count = 12) {
+  const options: { value: string; label: string }[] = []
+  const now = new Date()
+  for (let offset = 0; offset < count; offset += 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+    const label = formatPeriod(date)
+    options.push({ value: label, label })
+  }
+  return options
+}
+
+const periodOptions = buildPeriodOptions()
 
 const campaigns = ref<InterestCampaign[]>([])
 const loading = ref(true)
@@ -16,19 +54,26 @@ const loadErrorMessage = ref<string | null>(null)
 const errorMessage = ref<string | null>(null)
 const copied = ref(false)
 const generatedLink = ref<string | null>(null)
-const periodLabel = ref('')
+const periodLabel = ref(periodOptions[0]?.value ?? '')
 const durationDays = ref(7)
 const startDate = ref(today())
 
 const activeCampaign = computed(
-  () => campaigns.value.find((campaign) => ['scheduled', 'active'].includes(effectiveStatus(campaign))) ?? null
+  () => campaigns.value.find((campaign) => ['scheduled', 'active'].includes(effectiveCampaignStatus(campaign))) ?? null
 )
 
-const certificationStatus = computed(() => {
-  if (institutionHasCertification(props.institution)) return 'certified'
-  if (activeCampaign.value) return 'in-progress'
-  return 'unverified'
+const activeCampaignLink = computed(() => {
+  const id = activeCampaign.value ? campaignIdFrom(activeCampaign.value) : null
+  return id ? publicCampaignUrl(id) : null
 })
+
+const displayedLink = computed(() => activeCampaignLink.value ?? generatedLink.value)
+
+const linkWasJustCreated = computed(
+  () => generatedLink.value !== null && generatedLink.value === displayedLink.value
+)
+
+const certificationStatus = computed(() => getCertificationStatus(props.institution, campaigns.value))
 
 function today() {
   const date = new Date()
@@ -36,11 +81,6 @@ function today() {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
-}
-
-function effectiveStatus(campaign: InterestCampaign) {
-  const status = campaign.effectiveStatus
-  return String(typeof status === 'string' ? status : campaign.status).toLowerCase()
 }
 
 function statusLabel(status: string) {
@@ -89,13 +129,13 @@ function responseCount(campaign: InterestCampaign) {
 }
 
 const days = [
-  { keys: ['monday', 'segunda', 'segunda-feira'], label: 'Segunda' },
-  { keys: ['tuesday', 'terça', 'terca', 'terça-feira', 'terca-feira'], label: 'Terça' },
-  { keys: ['wednesday', 'quarta', 'quarta-feira'], label: 'Quarta' },
-  { keys: ['thursday', 'quinta', 'quinta-feira'], label: 'Quinta' },
-  { keys: ['friday', 'sexta', 'sexta-feira'], label: 'Sexta' },
-  { keys: ['saturday', 'sábado', 'sabado'], label: 'Sábado' },
-  { keys: ['sunday', 'domingo'], label: 'Domingo' },
+  { keys: ['mon', 'monday', 'segunda', 'segunda-feira'], label: 'Segunda' },
+  { keys: ['tue', 'tuesday', 'terça', 'terca', 'terça-feira', 'terca-feira'], label: 'Terça' },
+  { keys: ['wed', 'wednesday', 'quarta', 'quarta-feira'], label: 'Quarta' },
+  { keys: ['thu', 'thursday', 'quinta', 'quinta-feira'], label: 'Quinta' },
+  { keys: ['fri', 'friday', 'sexta', 'sexta-feira'], label: 'Sexta' },
+  { keys: ['sat', 'saturday', 'sábado', 'sabado'], label: 'Sábado' },
+  { keys: ['sun', 'sunday', 'domingo'], label: 'Domingo' },
 ]
 
 function dayDistribution(campaign: InterestCampaign) {
@@ -114,6 +154,22 @@ function dayCount(campaign: InterestCampaign, keys: string[]) {
   const distribution = dayDistribution(campaign)
   const entry = Object.entries(distribution).find(([key]) => keys.includes(key.toLowerCase()))
   return entry ? numberValue(entry[1]) ?? 0 : 0
+}
+
+function dayMax(campaign: InterestCampaign) {
+  return Math.max(1, ...days.map((day) => dayCount(campaign, day.keys)))
+}
+
+function dayPct(campaign: InterestCampaign, keys: string[]) {
+  return (dayCount(campaign, keys) / dayMax(campaign)) * 100
+}
+
+function dayShortLabel(label: string) {
+  return label.slice(0, 3)
+}
+
+function dayTitle(label: string, count: number) {
+  return `${label}: ${count} ${count === 1 ? 'resposta' : 'respostas'}`
 }
 
 function campaignIdFrom(value: unknown): string | null {
@@ -178,7 +234,7 @@ async function createCampaign() {
     const id = campaignIdFrom(createdCampaign)
     if (!id) throw new Error('A campanha foi criada sem identificador.')
     generatedLink.value = publicCampaignUrl(id)
-    periodLabel.value = ''
+    periodLabel.value = periodOptions[0]?.value ?? ''
     await loadCampaigns()
   } catch (error) {
     errorMessage.value = errorText(error)
@@ -196,6 +252,7 @@ async function cancelCampaign() {
   cancelling.value = true
   try {
     await idApi.cancelInterestCampaign(props.institutionId, id)
+    generatedLink.value = null
     await loadCampaigns()
   } catch (error) {
     errorMessage.value = errorText(error)
@@ -205,15 +262,20 @@ async function cancelCampaign() {
 }
 
 async function copyLink() {
-  if (!generatedLink.value || !navigator.clipboard) return
+  const link = displayedLink.value
+  if (!link || !navigator.clipboard) return
 
   try {
-    await navigator.clipboard.writeText(generatedLink.value)
+    await navigator.clipboard.writeText(link)
     copied.value = true
   } catch {
     errorMessage.value = 'Não foi possível copiar o link.'
   }
 }
+
+watch(displayedLink, () => {
+  copied.value = false
+})
 
 watch(() => props.institutionId, loadCampaigns, { immediate: true })
 </script>
@@ -230,13 +292,9 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
         v-if="!loading"
         class="pill"
         data-testid="certification-status"
-        :class="{
-          'pill-success': certificationStatus === 'certified',
-          'pill-info': certificationStatus === 'in-progress',
-          'pill-neutral': certificationStatus === 'unverified',
-        }"
+        :class="`pill-${certificationStatusTone(certificationStatus)}`"
       >
-        {{ certificationStatus === 'certified' ? 'Selo concedido' : certificationStatus === 'in-progress' ? 'Em processo de certificação' : 'Não verificado' }}
+        {{ certificationStatusLabel(certificationStatus) }}
       </span>
     </div>
 
@@ -259,15 +317,15 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
         </button>
       </div>
 
-      <div v-if="generatedLink" class="generated-link card">
+      <div v-if="displayedLink" class="generated-link card">
         <div class="generated-link-heading">
           <p class="card-kicker">Compartilhe com sua rede</p>
-          <strong>Link de interesse criado</strong>
+          <strong>{{ linkWasJustCreated ? 'Link de interesse criado' : 'Seu link de interesse' }}</strong>
         </div>
         <div class="link-row">
           <label class="field link-field">
             Link público
-            <input :value="generatedLink" readonly data-testid="campaign-link" aria-label="Link da campanha" />
+            <input :value="displayedLink" readonly data-testid="campaign-link" aria-label="Link da campanha" />
           </label>
           <button type="button" class="btn btn-secondary" @click="copyLink">
             {{ copied ? 'Copiado' : 'Copiar' }}
@@ -289,7 +347,11 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
         </div>
         <label class="field">
           Período
-          <input v-model="periodLabel" type="text" placeholder="Ex.: Março 2026" data-testid="period-input" />
+          <select v-model="periodLabel" data-testid="period-input">
+            <option v-for="option in periodOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
         </label>
         <div class="form-grid">
           <label class="field">
@@ -324,16 +386,30 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
               <strong>{{ campaign.periodLabel }}</strong>
               <p>{{ formatDate(campaign.startDate) }} a {{ formatDate(campaign.endDate) }}</p>
             </div>
-            <span class="pill pill-neutral">{{ statusLabel(effectiveStatus(campaign)) }}</span>
+            <span class="pill pill-neutral">{{ statusLabel(effectiveCampaignStatus(campaign)) }}</span>
           </div>
           <p class="response-count">
             <strong>{{ responseCount(campaign) }}</strong>
             {{ responseCount(campaign) === 1 ? 'resposta' : 'respostas' }}
           </p>
           <div class="day-breakdown" aria-label="Distribuição por dia da semana">
-            <span v-for="day in days" :key="day.label" class="pill pill-neutral day-chip">
-              {{ day.label }}: {{ dayCount(campaign, day.keys) }}
-            </span>
+            <div
+              v-for="day in days"
+              :key="day.label"
+              class="day-row"
+              data-testid="day-bar"
+              :title="dayTitle(day.label, dayCount(campaign, day.keys))"
+            >
+              <span class="day-label">{{ dayShortLabel(day.label) }}</span>
+              <span class="day-track" aria-hidden="true">
+                <span
+                  class="day-fill"
+                  aria-hidden="true"
+                  :style="{ width: `${dayPct(campaign, day.keys)}%` }"
+                ></span>
+              </span>
+              <span class="day-value">{{ dayCount(campaign, day.keys) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -506,13 +582,44 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
 }
 .day-breakdown {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--hemo-space-1);
+}
+.day-row {
+  display: flex;
+  align-items: center;
   gap: var(--hemo-space-2);
 }
-.day-chip {
-  min-height: 24px;
-  padding: 4px 8px;
-  font-size: 0.6875rem;
+.day-label {
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--hemo-color-black-80);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.day-track {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--hemo-color-black-10);
+  overflow: hidden;
+}
+.day-fill {
+  display: block;
+  height: 100%;
+  background: var(--hemo-color-primary);
+  border-radius: 0 4px 4px 0;
+}
+.day-value {
+  flex-shrink: 0;
+  min-width: 24px;
+  color: var(--hemo-color-black-80);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .campaigns-empty-state {
   margin-top: var(--hemo-space-4);

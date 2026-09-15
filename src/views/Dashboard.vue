@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { coletaApi, idApi } from '../api'
+import { coletaApi, idApi, type InterestCampaign } from '../api'
 import { institutions, activeInstitutionId, setInstitutions, activeInstitution } from '../institution'
 import { config } from '../config'
 import { statusLabel, statusTone } from '../statusLabels'
-import CertificationSection from '../components/CertificationSection.vue'
+import { certificationStatusLabel, certificationStatusTone, getCertificationStatus } from '../certification'
+import InstitutionImageUploadField from '../components/InstitutionImageUploadField.vue'
+import InstitutionKindIcon from '../components/InstitutionKindIcon.vue'
 
 type CollectionRequestSummary = { id: string; status: string }
 
 const requests = ref<CollectionRequestSummary[]>([])
+const certificationCampaigns = ref<InterestCampaign[]>([])
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
+
+const certificationStatus = computed(() => getCertificationStatus(activeInstitution(), certificationCampaigns.value))
 
 function newRequestUrl(institutionId: string) {
   return `${config.hemocioneColetaUrl}/agendar?institutionId=${encodeURIComponent(institutionId)}`
@@ -22,13 +27,29 @@ async function loadRequests(institutionId: string) {
   requests.value = requestData.collectionRequests ?? requestData.items ?? requestData
 }
 
+async function loadCertificationCampaigns(institutionId: string) {
+  try {
+    certificationCampaigns.value = await idApi.listInterestCampaigns(institutionId)
+  } catch {
+    certificationCampaigns.value = []
+  }
+}
+
+function updateInstitutionImage(kind: 'logo' | 'banner', url: string) {
+  const institution = activeInstitution()
+  if (institution) institution[kind] = url
+}
+
 onMounted(async () => {
   try {
     const data = await idApi.myInstitutions()
     setInstitutions(data)
 
     if (activeInstitutionId.value) {
-      await loadRequests(activeInstitutionId.value)
+      await Promise.all([
+        loadRequests(activeInstitutionId.value),
+        loadCertificationCampaigns(activeInstitutionId.value),
+      ])
     }
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Erro desconhecido'
@@ -59,7 +80,10 @@ onMounted(async () => {
         <div class="dashboard-header">
           <div class="page-heading">
             <p class="page-kicker">Visão geral</p>
-            <h1>{{ activeInstitution()?.name }}</h1>
+            <h1>
+              <InstitutionKindIcon :kind="activeInstitution()?.kind" />
+              <span class="institution-name">{{ activeInstitution()?.name }}</span>
+            </h1>
             <p class="page-description">Acompanhe solicitações e mobilize doadores em um só lugar.</p>
           </div>
           <a
@@ -73,6 +97,30 @@ onMounted(async () => {
             Nova solicitação
           </a>
         </div>
+
+        <section v-if="activeInstitution()?.role === 'admin'" class="institution-images-section" aria-labelledby="institution-images-title">
+          <div class="section-heading institution-images-heading">
+            <div>
+              <p class="section-kicker">Identidade</p>
+              <h2 id="institution-images-title">Imagens da instituição</h2>
+              <p class="section-description">Atualize a logo e o banner exibidos para sua instituição.</p>
+            </div>
+          </div>
+          <div v-if="activeInstitutionId" class="institution-images-grid">
+            <InstitutionImageUploadField
+              kind="logo"
+              :institution-id="activeInstitutionId"
+              :model-value="activeInstitution()?.logo"
+              @update:model-value="updateInstitutionImage('logo', $event)"
+            />
+            <InstitutionImageUploadField
+              kind="banner"
+              :institution-id="activeInstitutionId"
+              :model-value="activeInstitution()?.banner"
+              @update:model-value="updateInstitutionImage('banner', $event)"
+            />
+          </div>
+        </section>
 
         <section class="requests-section" aria-labelledby="requests-title">
           <div class="section-heading">
@@ -110,11 +158,31 @@ onMounted(async () => {
           </div>
         </section>
 
-        <CertificationSection
-          v-if="activeInstitutionId"
-          :institution-id="activeInstitutionId"
-          :institution="activeInstitution() ?? undefined"
-        />
+        <section v-if="activeInstitutionId" class="certification-summary-section" aria-labelledby="certification-summary-title">
+          <div class="card certification-summary" data-testid="certification-summary">
+            <div class="certification-summary-copy">
+              <p class="section-kicker">Mobilização de doadores</p>
+              <h2 id="certification-summary-title">Certificação</h2>
+              <p class="section-description">Consulte o selo da instituição e acompanhe seus links de interesse.</p>
+            </div>
+            <div class="certification-summary-action">
+              <span
+                class="pill"
+                data-testid="dashboard-certification-status"
+                :class="`pill-${certificationStatusTone(certificationStatus)}`"
+              >
+                {{ certificationStatusLabel(certificationStatus) }}
+              </span>
+              <RouterLink
+                :to="`/${activeInstitutionId}/certificacao`"
+                class="btn btn-secondary"
+                data-testid="certification-summary-link"
+              >
+                Ver certificação
+              </RouterLink>
+            </div>
+          </div>
+        </section>
       </template>
     </template>
   </main>
@@ -145,13 +213,22 @@ onMounted(async () => {
   text-transform: uppercase;
 }
 .page-heading h1 {
+  display: flex;
+  align-items: center;
+  gap: var(--hemo-space-2);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.page-heading h1 .institution-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .page-description {
   max-width: 540px;
-  margin-top: var(--hemo-space-2);
+  margin-top: var(--hemo-space-1);
   color: var(--hemo-color-text-muted);
   font-size: 0.9375rem;
 }
@@ -163,8 +240,47 @@ onMounted(async () => {
   font-weight: 400;
   line-height: 1;
 }
+.institution-images-section {
+  margin-bottom: var(--hemo-space-8);
+}
+.institution-images-heading {
+  align-items: flex-start;
+  margin-bottom: var(--hemo-space-3);
+}
+.section-description {
+  max-width: 540px;
+  margin-top: var(--hemo-space-2);
+  color: var(--hemo-color-text-muted);
+  font-size: 0.875rem;
+}
+.institution-images-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--hemo-space-4);
+}
 .requests-section {
   margin-bottom: var(--hemo-space-8);
+}
+.certification-summary-section {
+  margin-top: var(--hemo-space-8);
+}
+.certification-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hemo-space-6);
+}
+.certification-summary-copy {
+  min-width: 0;
+}
+.certification-summary-copy h2 {
+  font-size: 1.25rem;
+}
+.certification-summary-action {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--hemo-space-3);
 }
 .section-heading {
   display: flex;
@@ -253,6 +369,9 @@ onMounted(async () => {
   .dashboard-header .btn {
     width: 100%;
   }
+  .institution-images-grid {
+    grid-template-columns: 1fr;
+  }
   .request-card {
     align-items: flex-start;
     flex-direction: column;
@@ -260,6 +379,15 @@ onMounted(async () => {
   .request-card-action {
     width: 100%;
     justify-content: space-between;
+  }
+  .certification-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .certification-summary-action {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
   }
 }
 </style>

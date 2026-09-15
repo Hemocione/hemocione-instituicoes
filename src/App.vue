@@ -1,14 +1,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
+import { logout, redirectToLogin } from './auth'
 import OrgSwitcher from './components/OrgSwitcher.vue'
 
 const route = useRoute()
 const isPublicRoute = computed(() => route.meta.public === true)
+
+function handleLogout() {
+  logout()
+  redirectToLogin()
+}
 </script>
 
 <template>
-  <header class="topbar">
+  <header v-if="!isPublicRoute" class="topbar">
     <div class="topbar-inner">
       <div class="brand" aria-label="Hemocione instituições">
         <span class="brand-mark" aria-hidden="true">
@@ -24,12 +30,21 @@ const isPublicRoute = computed(() => route.meta.public === true)
           <span>instituições</span>
         </span>
       </div>
-      <nav v-if="!isPublicRoute" class="nav" aria-label="Navegação principal">
+      <!-- TODO: reativar quando Meus eventos estiver pronto e o dashboard existir. -->
+      <nav v-if="false" class="nav" aria-label="Navegação principal">
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/eventos">Meus eventos</RouterLink>
       </nav>
-      <div v-if="!isPublicRoute" class="topbar-actions">
+      <div class="topbar-actions">
         <OrgSwitcher />
+        <button type="button" class="btn btn-secondary" data-testid="logout-button" @click="handleLogout">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="m16 17 5-5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Sair
+        </button>
       </div>
     </div>
   </header>
@@ -126,8 +141,9 @@ const isPublicRoute = computed(() => route.meta.public === true)
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  gap: var(--hemo-space-2);
+  margin-left: auto;
 }
-
 @media (max-width: 640px) {
   .topbar-inner {
     flex-wrap: wrap;

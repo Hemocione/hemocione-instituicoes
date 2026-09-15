@@ -54,7 +54,7 @@ describe('idApi.myInstitutions', () => {
     token.value = 'test-token'
   })
 
-  it('maps membership records to {id, name} using the nested institution, not the membership row id', async () => {
+  it('maps membership records with the institution id, name, and membership role', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -80,8 +80,8 @@ describe('idApi.myInstitutions', () => {
     const result = await idApi.myInstitutions()
 
     expect(result).toEqual([
-      { id: 'inst-real-1', name: 'Escola Real' },
-      { id: 'inst-real-2', name: 'Empresa Real' },
+      { id: 'inst-real-1', name: 'Escola Real', role: 'admin' },
+      { id: 'inst-real-2', name: 'Empresa Real', role: 'staff' },
     ])
   })
 

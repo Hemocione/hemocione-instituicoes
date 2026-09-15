@@ -87,6 +87,11 @@ body {
   overflow-x: clip;
 }
 
+/* Public interest page locks page scroll; the card scrolls internally. */
+body:has(.interest-page) {
+  overflow: hidden;
+}
+
 body {
   min-height: 100dvh;
   background: var(--hemo-color-background);
