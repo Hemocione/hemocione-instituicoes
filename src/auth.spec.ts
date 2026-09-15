@@ -3,6 +3,15 @@ import { createApp } from 'vue'
 
 type AuthModule = typeof import('./auth')
 
+// The router regression test only needs the real router/auth/guard wiring, not
+// the view graph: importing the real views makes the spec pay for transforming
+// the whole app on a cold cache, which is slow enough to blow the test timeout.
+vi.mock('./views/Dashboard.vue', () => ({ default: {} }))
+vi.mock('./views/RequestDetail.vue', () => ({ default: {} }))
+vi.mock('./views/Events.vue', () => ({ default: {} }))
+vi.mock('./views/InterestCampaign.vue', () => ({ default: {} }))
+vi.mock('./views/CertificationPage.vue', () => ({ default: {} }))
+
 // The module reads ?token at import time, so each test boots a fresh copy of
 // it against the URL it wants to simulate.
 function bootAt(url: string) {
@@ -24,9 +33,9 @@ describe('initAuth URL token handling', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
 
     const auth = await bootAt('/?token=rejected.jwt&campaign=1')
-    await auth.initAuth()
 
     expect(window.location.search).toBe('?campaign=1')
+    await auth.initAuth()
     expect(auth.token.value).toBeNull()
     expect(localStorage.getItem('hemocione_token')).toBeNull()
   })
@@ -56,16 +65,12 @@ describe('initAuth URL token handling', () => {
   })
 
   // Regression: createWebHistory() snapshots window.location at creation and the
-  // router replays that snapshot when installed, which used to put ?token back
-  // in the address bar.
-  it('keeps the token out of the URL after the router installs', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))
-
-    window.history.replaceState(window.history.state, '', '/?token=accepted.jwt')
+  // router replays that snapshot when it installs, which used to put ?token back
+  // in the address bar. The public route keeps the auth guard out of the way.
+  it('keeps the token out of the URL when the router installs', async () => {
+    window.history.replaceState(window.history.state, '', '/interesse/campaign-1?token=accepted.jwt')
     vi.resetModules()
     const { router } = await import('./router')
-    const auth = await import('./auth')
-    await auth.initAuth()
 
     const app = createApp({ render: () => null })
     app.use(router)
