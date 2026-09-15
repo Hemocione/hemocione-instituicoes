@@ -62,6 +62,17 @@ const activeCampaign = computed(
   () => campaigns.value.find((campaign) => ['scheduled', 'active'].includes(effectiveCampaignStatus(campaign))) ?? null
 )
 
+const activeCampaignLink = computed(() => {
+  const id = activeCampaign.value ? campaignIdFrom(activeCampaign.value) : null
+  return id ? publicCampaignUrl(id) : null
+})
+
+const displayedLink = computed(() => activeCampaignLink.value ?? generatedLink.value)
+
+const linkWasJustCreated = computed(
+  () => generatedLink.value !== null && generatedLink.value === displayedLink.value
+)
+
 const certificationStatus = computed(() => getCertificationStatus(props.institution, campaigns.value))
 
 function today() {
@@ -225,6 +236,7 @@ async function cancelCampaign() {
   cancelling.value = true
   try {
     await idApi.cancelInterestCampaign(props.institutionId, id)
+    generatedLink.value = null
     await loadCampaigns()
   } catch (error) {
     errorMessage.value = errorText(error)
@@ -234,15 +246,20 @@ async function cancelCampaign() {
 }
 
 async function copyLink() {
-  if (!generatedLink.value || !navigator.clipboard) return
+  const link = displayedLink.value
+  if (!link || !navigator.clipboard) return
 
   try {
-    await navigator.clipboard.writeText(generatedLink.value)
+    await navigator.clipboard.writeText(link)
     copied.value = true
   } catch {
     errorMessage.value = 'Não foi possível copiar o link.'
   }
 }
+
+watch(displayedLink, () => {
+  copied.value = false
+})
 
 watch(() => props.institutionId, loadCampaigns, { immediate: true })
 </script>
@@ -284,15 +301,15 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
         </button>
       </div>
 
-      <div v-if="generatedLink" class="generated-link card">
+      <div v-if="displayedLink" class="generated-link card">
         <div class="generated-link-heading">
           <p class="card-kicker">Compartilhe com sua rede</p>
-          <strong>Link de interesse criado</strong>
+          <strong>{{ linkWasJustCreated ? 'Link de interesse criado' : 'Seu link de interesse' }}</strong>
         </div>
         <div class="link-row">
           <label class="field link-field">
             Link público
-            <input :value="generatedLink" readonly data-testid="campaign-link" aria-label="Link da campanha" />
+            <input :value="displayedLink" readonly data-testid="campaign-link" aria-label="Link da campanha" />
           </label>
           <button type="button" class="btn btn-secondary" @click="copyLink">
             {{ copied ? 'Copiado' : 'Copiar' }}
