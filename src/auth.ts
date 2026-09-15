@@ -35,17 +35,34 @@ export async function validateToken(candidate: string): Promise<boolean> {
   }
 }
 
-export async function initAuth(): Promise<void> {
+// Removes ?token from the address bar before validation starts: the token must
+// not stay in the URL/history when validation fails either.
+// This also runs before the router is created — createWebHistory() snapshots
+// window.location and the router replays that snapshot on install, which would
+// put ?token back. router.ts imports this module, so this code runs before
+// createWebHistory().
+function consumeTokenFromUrl(): string | null {
   const params = new URLSearchParams(window.location.search)
-  const tokenFromQuery = params.get('token')
+  const candidate = params.get('token')
+  if (!candidate) return null
 
-  if (tokenFromQuery) {
-    const valid = await validateToken(tokenFromQuery)
+  params.delete('token')
+  const query = params.toString()
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+  )
+  return candidate
+}
+
+const tokenFromUrl = consumeTokenFromUrl()
+
+export async function initAuth(): Promise<void> {
+  if (tokenFromUrl) {
+    const valid = await validateToken(tokenFromUrl)
     if (valid) {
-      setToken(tokenFromQuery)
-      params.delete('token')
-      const cleanUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`
-      window.history.replaceState({}, '', cleanUrl)
+      setToken(tokenFromUrl)
       return
     }
   }
