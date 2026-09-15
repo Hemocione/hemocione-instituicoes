@@ -77,5 +77,48 @@ describe('initAuth URL token handling', () => {
     await router.isReady()
 
     expect(window.location.search).toBe('')
+    app.unmount()
+  })
+})
+
+describe('redirectToLogin', () => {
+  // jsdom does not perform cross-document navigation, so point the login URL at
+  // a same-document hash: destination changes are observable on location.hash.
+  beforeEach(() => {
+    localStorage.clear()
+    window.history.replaceState(window.history.state, '', '/interesse/campaign-1')
+    vi.doMock('./config', () => ({ config: { hemocioneIdUrl: '#login' } }))
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    vi.doUnmock('./config')
+    vi.resetModules()
+    window.history.replaceState(window.history.state, '', '/')
+  })
+
+  function redirectParam() {
+    const query = window.location.hash.slice(window.location.hash.indexOf('?') + 1)
+    return new URLSearchParams(query).get('redirect')
+  }
+
+  it('carries the extra query params in the redirect target', async () => {
+    const auth = (await import('./auth')) as AuthModule
+
+    auth.redirectToLogin({ resume_days: 'monday,friday' })
+
+    expect(window.location.hash.startsWith('#login?redirect=')).toBe(true)
+    expect(redirectParam()).toBe(
+      `${window.location.origin}/interesse/campaign-1?resume_days=monday%2Cfriday`
+    )
+  })
+
+  it('keeps the current path without a query when no extra params are given', async () => {
+    const auth = (await import('./auth')) as AuthModule
+
+    auth.redirectToLogin()
+
+    expect(window.location.hash.startsWith('#login?redirect=')).toBe(true)
+    expect(redirectParam()).toBe(`${window.location.origin}/interesse/campaign-1`)
   })
 })

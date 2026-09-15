@@ -19,8 +19,14 @@ export function logout() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-export function redirectToLogin() {
-  const redirectUrl = encodeURIComponent(window.location.href.split('?')[0])
+// extraQuery travels as part of the redirect URL through the cross-origin login
+// handoff (e.g. resume_days), where in-memory state would not survive.
+export function redirectToLogin(extraQuery?: Record<string, string>) {
+  const target =
+    extraQuery && Object.keys(extraQuery).length
+      ? `${window.location.pathname}?${new URLSearchParams(extraQuery).toString()}`
+      : window.location.pathname
+  const redirectUrl = encodeURIComponent(`${window.location.origin}${target}`)
   window.location.href = `${config.hemocioneIdUrl}?redirect=${redirectUrl}`
 }
 
