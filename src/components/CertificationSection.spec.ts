@@ -180,4 +180,83 @@ describe('CertificationSection', () => {
     expect(wrapper.text()).toContain('Já existe uma campanha de interesse agendada ou ativa')
     expect(wrapper.find('[data-testid="create-campaign-form"]').exists()).toBe(true)
   })
+
+  it('derives and copies the public link from a campaign already active on load', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      {
+        id: 'campaign-existing',
+        periodLabel: 'Março 2026',
+        startDate: '2026-03-01',
+        endDate: '2026-03-07',
+        status: 'active',
+      },
+    ])
+
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    expect(idApi.createInterestCampaign).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="campaign-link"]').attributes('value')).toBe(
+      `${window.location.origin}/interesse/campaign-existing`
+    )
+    expect(wrapper.text()).toContain('Seu link de interesse')
+
+    const copyButton = wrapper
+      .get('.generated-link')
+      .findAll('button')
+      .find((button) => button.text() === 'Copiar')
+    expect(copyButton).toBeTruthy()
+    await copyButton!.trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/interesse/campaign-existing`)
+    expect(copyButton!.text()).toBe('Copiado')
+  })
+
+  it('resets the copied state when the displayed link changes', async () => {
+    vi.mocked(idApi.listInterestCampaigns)
+      .mockResolvedValueOnce([
+        {
+          id: 'campaign-existing',
+          periodLabel: 'Março 2026',
+          startDate: '2026-03-01',
+          endDate: '2026-03-07',
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'campaign-other',
+          periodLabel: 'Abril 2026',
+          startDate: '2026-04-01',
+          endDate: '2026-04-07',
+          status: 'active',
+        },
+      ])
+
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    const copyButton = wrapper
+      .get('.generated-link')
+      .findAll('button')
+      .find((button) => button.text() === 'Copiar')
+    await copyButton!.trigger('click')
+    await flushPromises()
+    expect(copyButton!.text()).toBe('Copiado')
+
+    await wrapper.setProps({ institutionId: 'inst-2' })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="campaign-link"]').attributes('value')).toBe(
+      `${window.location.origin}/interesse/campaign-other`
+    )
+    expect(wrapper.get('.generated-link').findAll('button').find((button) => button.text() === 'Copiar')).toBeTruthy()
+  })
 })
