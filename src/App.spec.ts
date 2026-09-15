@@ -40,6 +40,7 @@ describe('App topbar logout', () => {
     const privateWrapper = mountApp()
 
     expect(privateWrapper.get('[data-testid="logout-button"]').text()).toBe('Sair')
+    expect(privateWrapper.find('[data-testid="logout-button"] svg').exists()).toBe(true)
 
     privateWrapper.unmount()
     route.meta = { public: true }
