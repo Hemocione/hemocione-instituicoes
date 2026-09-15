@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { logout, redirectToLogin } from './auth'
 import OrgSwitcher from './components/OrgSwitcher.vue'
 
@@ -14,7 +14,24 @@ function handleLogout() {
 </script>
 
 <template>
-  <header class="topbar">
+  <header v-if="isPublicRoute" class="topbar topbar-public" data-testid="public-topbar">
+    <div class="topbar-inner topbar-inner-public">
+      <span class="brand brand-public" aria-label="Hemocione">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M12 21s-6-4.35-6-9.5a6 6 0 0 1 12 0C18 16.65 12 21 12 21Z"
+              fill="currentColor"
+            />
+          </svg>
+        </span>
+        <span class="brand-text">
+          <strong>hemocione</strong>
+        </span>
+      </span>
+    </div>
+  </header>
+  <header v-else class="topbar">
     <div class="topbar-inner">
       <div class="brand" aria-label="Hemocione instituições">
         <span class="brand-mark" aria-hidden="true">
@@ -143,6 +160,33 @@ function handleLogout() {
   flex-shrink: 0;
   gap: var(--hemo-space-2);
   margin-left: auto;
+}
+.topbar-public {
+  box-shadow: none;
+}
+.topbar-inner-public {
+  justify-content: center;
+  min-height: 48px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.brand-public {
+  cursor: default;
+  user-select: none;
+}
+.brand-public .brand-mark {
+  width: 26px;
+  height: 26px;
+  box-shadow: none;
+}
+.brand-public .brand-mark svg {
+  width: 16px;
+  height: 16px;
+}
+.brand-public .brand-text strong {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 @media (max-width: 640px) {

@@ -41,6 +41,7 @@ describe('App topbar logout', () => {
 
     expect(privateWrapper.get('[data-testid="logout-button"]').text()).toBe('Sair')
     expect(privateWrapper.find('[data-testid="logout-button"] svg').exists()).toBe(true)
+    expect(privateWrapper.find('[data-testid="org-switcher"]').exists()).toBe(true)
 
     privateWrapper.unmount()
     route.meta = { public: true }
@@ -57,6 +58,20 @@ describe('App topbar logout', () => {
 
     expect(logoutMock).toHaveBeenCalledOnce()
     expect(redirectToLoginMock).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
+  it('renders a minimal non-interactive header on public routes', () => {
+    route.meta = { public: true }
+    const wrapper = mountApp()
+
+    const topbar = wrapper.get('[data-testid="public-topbar"]')
+    expect(topbar.text().toLowerCase()).toContain('hemocione')
+    expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="org-switcher"]').exists()).toBe(false)
+    expect(topbar.find('a').exists()).toBe(false)
+    expect(topbar.find('nav').exists()).toBe(false)
+
     wrapper.unmount()
   })
 })
