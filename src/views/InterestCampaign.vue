@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { idApi, type PublicInterestCampaign } from '../api'
 import { isAuthenticated, redirectToLogin } from '../auth'
 
-type CampaignStep = 'intro' | 'selection' | 'confirmed'
+type CampaignStep = 'selection' | 'confirmed'
 
 const route = useRoute()
 const campaignId = computed(() => String(route.params.campaignId))
@@ -12,7 +12,7 @@ const campaign = ref<PublicInterestCampaign | null>(null)
 const loading = ref(true)
 const submitting = ref(false)
 const errorMessage = ref<string | null>(null)
-const step = ref<CampaignStep>('intro')
+const step = ref<CampaignStep>('selection')
 const selectedDays = ref<string[]>([])
 const previousTitle = ref('')
 
@@ -25,6 +25,8 @@ const weekDays = [
   { value: 'saturday', label: 'Sábado' },
   { value: 'sunday', label: 'Domingo' },
 ]
+
+const validDayValues = new Set(weekDays.map((day) => day.value))
 
 function currentPageUrl() {
   return `${window.location.origin}${route.path}`
@@ -63,24 +65,33 @@ function updateCampaignMeta(data?: PublicInterestCampaign) {
   updateMeta('property', 'og:url', currentPageUrl())
 }
 
-function resumePendingResponse() {
-  const pendingUrl = sessionStorage.getItem('interest_campaign_pending_url')
-  if (isAuthenticated() && pendingUrl === currentPageUrl() && campaign.value?.isAcceptingResponses) {
-    sessionStorage.removeItem('interest_campaign_pending_url')
-    step.value = 'selection'
+// Uses campaign.questionText when it adds something new; otherwise falls back
+// to a short direct question so the page never repeats itself.
+const selectorQuestion = computed(() => {
+  const question = campaign.value?.questionText?.trim()
+  if (!question) return 'Você tem interesse em participar?'
+  const lower = question.toLowerCase()
+  const name = campaign.value?.institutionName.toLowerCase() ?? ''
+  const period = campaign.value?.periodLabel.toLowerCase() ?? ''
+  if ((name && lower.includes(name)) || (period && lower.includes(period))) {
+    return 'Você tem interesse em participar?'
   }
+  return question
+})
+
+function isSelected(value: string) {
+  return selectedDays.value.includes(value)
 }
 
-function startResponse() {
-  if (!campaign.value?.isAcceptingResponses) return
-
-  if (!isAuthenticated()) {
-    sessionStorage.setItem('interest_campaign_pending_url', currentPageUrl())
-    redirectToLogin()
-    return
+function toggleDay(value: string) {
+  if (isSelected(value)) {
+    selectedDays.value = selectedDays.value.filter((day) => day !== value)
+  } else {
+    selectedDays.value = [...selectedDays.value, value]
   }
-
-  step.value = 'selection'
+  if (selectedDays.value.length > 0 && errorMessage.value === 'Selecione pelo menos um dia da semana.') {
+    errorMessage.value = null
+  }
 }
 
 async function submitResponse() {
@@ -90,16 +101,72 @@ async function submitResponse() {
   }
 
   errorMessage.value = null
+
+  if (!isAuthenticated()) {
+    localStorage.setItem(`interest_campaign_pending:${campaignId.value}`, JSON.stringify(selectedDays.value))
+    redirectToLogin({ resume_days: selectedDays.value.join(',') })
+    return
+  }
+
   submitting.value = true
   try {
     await idApi.respondToInterestCampaign(campaignId.value, selectedDays.value)
-    sessionStorage.removeItem('interest_campaign_pending_url')
+    localStorage.setItem(`interest_campaign_responded:${campaignId.value}`, 'true')
+    localStorage.removeItem(`interest_campaign_pending:${campaignId.value}`)
     step.value = 'confirmed'
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Erro desconhecido'
   } finally {
     submitting.value = false
   }
+}
+
+function restorePrefill() {
+  if (!campaign.value) return
+
+  const respondedKey = `interest_campaign_responded:${campaignId.value}`
+  const pendingKey = `interest_campaign_pending:${campaignId.value}`
+
+  if (localStorage.getItem(respondedKey) === 'true') {
+    step.value = 'confirmed'
+    return
+  }
+
+  const rawParam = new URLSearchParams(window.location.search).get('resume_days')
+  const fromQuery = rawParam !== null && rawParam !== ''
+  let prefill: string[] = []
+
+  if (rawParam !== null) {
+    prefill = rawParam.split(',').filter((value) => validDayValues.has(value))
+  } else {
+    try {
+      const stored = localStorage.getItem(pendingKey)
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          prefill = parsed.filter((value): value is string => typeof value === 'string' && validDayValues.has(value))
+        }
+      }
+    } catch {
+      prefill = []
+    }
+  }
+
+  if (prefill.length === 0) return
+  if (!isAuthenticated() || !campaign.value.isAcceptingResponses) return
+
+  selectedDays.value = prefill
+  if (fromQuery) {
+    const params = new URLSearchParams(window.location.search)
+    params.delete('resume_days')
+    const query = params.toString()
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+    )
+  }
+  localStorage.removeItem(pendingKey)
 }
 
 const whatsappUrl = computed(() => {
@@ -115,7 +182,7 @@ onMounted(async () => {
   try {
     campaign.value = await idApi.getPublicInterestCampaign(campaignId.value)
     updateCampaignMeta(campaign.value)
-    resumePendingResponse()
+    restorePrefill()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Erro desconhecido'
   } finally {
@@ -162,67 +229,62 @@ onUnmounted(() => {
             class="campaign-logo"
           />
           <div>
-            <p class="campaign-kicker">Campanha de interesse</p>
             <h1>{{ campaign.institutionName }}</h1>
-            <p class="campaign-period">{{ campaign.periodLabel }}</p>
+            <p class="period-badge">Coleta prevista: {{ campaign.periodLabel }}</p>
           </div>
         </div>
 
-        <template v-if="step === 'intro'">
-          <div class="campaign-question">
-            <div class="question-heading">
-              <span class="question-icon" aria-hidden="true">?</span>
-              <span class="question-label">Pergunta</span>
-            </div>
-            <p>{{ campaign.questionText }}</p>
-          </div>
-          <p v-if="!campaign.isAcceptingResponses" class="closed-message">
-            <span class="pill pill-warning">Encerrada</span>
-            Essa campanha não está mais aceitando respostas.
-          </p>
-          <button
-            type="button"
-            class="btn btn-primary campaign-action"
-            data-testid="interest-button"
-            :disabled="!campaign.isAcceptingResponses"
-            @click="startResponse"
-          >
-            Tenho interesse
-          </button>
-        </template>
-
-        <form v-else-if="step === 'selection'" class="response-form" @submit.prevent="submitResponse">
-          <div class="response-heading">
-            <p class="campaign-kicker">Sua disponibilidade</p>
-            <h2>Escolha os dias disponíveis</h2>
-          </div>
-          <label class="field" for="available-days">
-            Quais dias da semana você tem disponíveis?
-            <select id="available-days" v-model="selectedDays" multiple size="7" data-testid="days-select">
-              <option v-for="day in weekDays" :key="day.value" :value="day.value">{{ day.label }}</option>
-            </select>
-          </label>
-          <p class="selection-hint">Use Ctrl ou Command para selecionar mais de um dia.</p>
-          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
-          <button
-            type="submit"
-            class="btn btn-primary campaign-action"
-            data-testid="confirm-response-button"
-            :disabled="submitting"
-          >
-            {{ submitting ? 'Enviando...' : 'Confirmar interesse' }}
-          </button>
-        </form>
-
-        <section v-else class="confirmation" data-testid="confirmation-state">
+        <section v-if="step === 'confirmed'" class="confirmation" data-testid="confirmation-state">
           <p class="confirmation-mark" aria-hidden="true">✓</p>
-          <p class="campaign-kicker">Disponibilidade registrada</p>
           <h2>Obrigado pelo seu interesse!</h2>
           <p>Sua disponibilidade foi registrada. Compartilhe esta campanha com mais pessoas.</p>
           <a :href="whatsappUrl" target="_blank" rel="noopener" class="btn btn-secondary campaign-action">
             Compartilhar no WhatsApp
           </a>
         </section>
+
+        <template v-else>
+          <p class="campaign-intro">
+            A {{ campaign.institutionName }} está reunindo pessoas interessadas em doar sangue em uma
+            próxima coleta, em {{ campaign.periodLabel }}. Sua resposta ajuda a instituição a garantir
+            uma data com o banco de sangue.
+          </p>
+
+          <p v-if="!campaign.isAcceptingResponses" class="closed-message">
+            <span class="pill pill-warning">Encerrada</span>
+            Essa campanha não está mais aceitando respostas.
+          </p>
+
+          <form v-else class="response-form" @submit.prevent="submitResponse">
+            <fieldset class="days-fieldset">
+              <legend class="days-legend">{{ selectorQuestion }}</legend>
+              <div class="days-grid">
+                <button
+                  v-for="day in weekDays"
+                  :key="day.value"
+                  type="button"
+                  class="day-toggle"
+                  :class="{ 'day-toggle-selected': isSelected(day.value) }"
+                  :aria-pressed="isSelected(day.value)"
+                  :data-testid="`day-toggle-${day.value}`"
+                  @click="toggleDay(day.value)"
+                >
+                  <span v-if="isSelected(day.value)" class="day-check" aria-hidden="true">✓</span>
+                  {{ day.label }}
+                </button>
+              </div>
+            </fieldset>
+            <p v-if="errorMessage" class="error-message form-error" role="alert">{{ errorMessage }}</p>
+            <button
+              type="submit"
+              class="btn btn-primary campaign-action"
+              data-testid="confirm-response-button"
+              :disabled="submitting"
+            >
+              {{ submitting ? 'Enviando...' : 'Confirmar interesse' }}
+            </button>
+          </form>
+        </template>
       </div>
     </article>
   </main>
@@ -263,59 +325,28 @@ onUnmounted(() => {
   background: var(--hemo-color-white);
   padding: var(--hemo-space-2);
 }
-.campaign-kicker,
-.question-label {
-  margin: 0 0 6px;
-  color: var(--hemo-color-primary);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 .campaign-content h1 {
   font-size: 1.875rem;
   line-height: 1.15;
 }
-.campaign-period {
-  margin: var(--hemo-space-2) 0 0;
-  color: var(--hemo-color-text-muted);
-  font-size: 0.9375rem;
-}
-.campaign-question {
-  margin: var(--hemo-space-7) 0 var(--hemo-space-5);
-  padding: var(--hemo-space-5);
-  border: 1px solid var(--hemo-color-black-15);
-  border-left: 4px solid var(--hemo-color-primary);
-  border-radius: 0 var(--hemo-radius) var(--hemo-radius) 0;
-  background: var(--hemo-color-black-5);
-}
-.question-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--hemo-space-2);
-  margin-bottom: var(--hemo-space-2);
-}
-.question-heading .question-label {
-  margin: 0;
-}
-.question-icon {
+.period-badge {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
+  margin: var(--hemo-space-3) 0 0;
+  padding: var(--hemo-space-2) var(--hemo-space-4);
+  border: 1px solid rgba(187, 10, 8, 0.22);
   border-radius: var(--hemo-radius-full);
   background: var(--hemo-color-danger-soft);
-  color: var(--hemo-color-primary);
-  font-size: 0.875rem;
+  color: var(--hemo-color-primary-dark);
+  font-size: 1.0625rem;
   font-weight: 700;
+  line-height: 1.3;
 }
-.campaign-question p {
-  margin: 0;
-  color: var(--hemo-color-black-100);
-  font-size: 1.125rem;
-  font-weight: 500;
-  line-height: 1.45;
+.campaign-intro {
+  margin: var(--hemo-space-6) 0 0;
+  color: var(--hemo-color-black-80);
+  font-size: 1rem;
+  line-height: 1.6;
 }
 .campaign-action {
   width: 100%;
@@ -324,38 +355,91 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--hemo-space-2);
-  margin: 0 0 var(--hemo-space-4);
+  margin: var(--hemo-space-6) 0 0;
   color: var(--hemo-color-black-80);
   font-size: 0.875rem;
 }
-.response-form .field {
-  margin-bottom: var(--hemo-space-2);
+.response-form {
+  margin-top: var(--hemo-space-7);
 }
-.response-form select {
-  min-height: 184px;
-  padding: var(--hemo-space-2);
+.days-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
 }
-.response-form option {
-  padding: var(--hemo-space-2);
-}
-.response-heading {
-  margin-bottom: var(--hemo-space-5);
-}
-.response-heading .campaign-kicker {
-  margin-bottom: var(--hemo-space-1);
-}
-.response-heading h2 {
-  font-size: 1.25rem;
-}
-.selection-hint {
-  margin: 0 0 var(--hemo-space-4);
-  color: var(--hemo-color-text-muted);
-  font-size: 0.75rem;
-}
-.response-form .error-message {
+.days-legend {
+  padding: 0;
   margin-bottom: var(--hemo-space-4);
+  color: var(--hemo-color-black-100);
+  font-size: 1.125rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.days-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--hemo-space-3);
+}
+.day-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hemo-space-2);
+  min-height: 48px;
+  padding: var(--hemo-space-3) var(--hemo-space-2);
+  border: 1.5px solid var(--hemo-color-black-20);
+  border-radius: var(--hemo-radius);
+  background: var(--hemo-color-white);
+  color: var(--hemo-color-black-80);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.day-toggle:hover {
+  border-color: var(--hemo-color-primary);
+  color: var(--hemo-color-primary-dark);
+}
+.day-toggle:focus-visible {
+  outline: none;
+  border-color: var(--hemo-color-primary);
+  box-shadow: var(--hemo-shadow-focus);
+}
+.day-toggle-selected {
+  border-color: var(--hemo-color-primary);
+  background: var(--hemo-color-danger-soft);
+  color: var(--hemo-color-primary-dark);
+  font-weight: 700;
+}
+.day-toggle-selected:hover {
+  border-color: var(--hemo-color-primary-dark);
+  color: var(--hemo-color-primary-dark);
+}
+.day-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: var(--hemo-radius-full);
+  background: var(--hemo-color-primary);
+  color: var(--hemo-color-white);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.form-error {
+  margin: var(--hemo-space-4) 0 0;
+}
+.response-form .campaign-action {
+  margin-top: var(--hemo-space-5);
+  min-height: 48px;
+  font-size: 1rem;
 }
 .confirmation {
+  margin-top: var(--hemo-space-7);
   text-align: center;
 }
 .confirmation-mark {
@@ -370,13 +454,10 @@ onUnmounted(() => {
   font-size: 1.75rem;
   font-weight: 700;
 }
-.confirmation .campaign-kicker {
-  margin-bottom: var(--hemo-space-2);
-}
 .confirmation h2 {
   font-size: 1.375rem;
 }
-.confirmation > p:not(.confirmation-mark):not(.campaign-kicker) {
+.confirmation > p:not(.confirmation-mark) {
   margin: var(--hemo-space-2) 0 var(--hemo-space-5);
   color: var(--hemo-color-black-80);
   font-size: 0.875rem;
@@ -387,6 +468,12 @@ onUnmounted(() => {
 }
 .campaign-error .error-message {
   margin: 0;
+}
+
+@media (min-width: 640px) {
+  .days-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 @media (max-width: 520px) {
