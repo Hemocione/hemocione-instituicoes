@@ -156,6 +156,22 @@ function dayCount(campaign: InterestCampaign, keys: string[]) {
   return entry ? numberValue(entry[1]) ?? 0 : 0
 }
 
+function dayMax(campaign: InterestCampaign) {
+  return Math.max(1, ...days.map((day) => dayCount(campaign, day.keys)))
+}
+
+function dayPct(campaign: InterestCampaign, keys: string[]) {
+  return (dayCount(campaign, keys) / dayMax(campaign)) * 100
+}
+
+function dayShortLabel(label: string) {
+  return label.slice(0, 3)
+}
+
+function dayTitle(label: string, count: number) {
+  return `${label}: ${count} ${count === 1 ? 'resposta' : 'respostas'}`
+}
+
 function campaignIdFrom(value: unknown): string | null {
   const data = objectValue(value)
   if (!data) return null
@@ -377,9 +393,23 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
             {{ responseCount(campaign) === 1 ? 'resposta' : 'respostas' }}
           </p>
           <div class="day-breakdown" aria-label="Distribuição por dia da semana">
-            <span v-for="day in days" :key="day.label" class="pill pill-neutral day-chip">
-              {{ day.label }}: {{ dayCount(campaign, day.keys) }}
-            </span>
+            <div
+              v-for="day in days"
+              :key="day.label"
+              class="day-row"
+              data-testid="day-bar"
+              :title="dayTitle(day.label, dayCount(campaign, day.keys))"
+            >
+              <span class="day-label">{{ dayShortLabel(day.label) }}</span>
+              <span class="day-track" aria-hidden="true">
+                <span
+                  class="day-fill"
+                  aria-hidden="true"
+                  :style="{ width: `${dayPct(campaign, day.keys)}%` }"
+                ></span>
+              </span>
+              <span class="day-value">{{ dayCount(campaign, day.keys) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -552,13 +582,44 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
 }
 .day-breakdown {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--hemo-space-1);
+}
+.day-row {
+  display: flex;
+  align-items: center;
   gap: var(--hemo-space-2);
 }
-.day-chip {
-  min-height: 24px;
-  padding: 4px 8px;
-  font-size: 0.6875rem;
+.day-label {
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--hemo-color-black-80);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.day-track {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--hemo-color-black-10);
+  overflow: hidden;
+}
+.day-fill {
+  display: block;
+  height: 100%;
+  background: var(--hemo-color-primary);
+  border-radius: 0 4px 4px 0;
+}
+.day-value {
+  flex-shrink: 0;
+  min-width: 24px;
+  color: var(--hemo-color-black-80);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .campaigns-empty-state {
   margin-top: var(--hemo-space-4);
