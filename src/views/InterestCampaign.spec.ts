@@ -2,7 +2,42 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { flushPromises, mount } from '@vue/test-utils'
 import InterestCampaign from './InterestCampaign.vue'
-import { token } from '../auth'
+import { redirectToLogin, token } from '../auth'
+
+// Partial mock: keep the real token/isAuthenticated wiring (shared with ../api)
+// and replace only the navigation side effect so it can be asserted.
+vi.mock('../auth', async () => {
+  const actual = await vi.importActual<typeof import('../auth')>('../auth')
+  return { ...actual, redirectToLogin: vi.fn() }
+})
+
+const campaignResponse = {
+  institutionName: 'Escola Real',
+  institutionLogoUrl: 'https://cdn.test/logo.png',
+  institutionBannerUrl: 'https://cdn.test/banner.png',
+  periodLabel: 'Março 2026',
+  questionText: 'Quais dias você tem disponíveis?',
+  isAcceptingResponses: true,
+}
+
+function stubFetch(overrides: Record<string, unknown> = {}) {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+    if (String(input).includes('/public')) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ...campaignResponse, ...overrides }),
+      } as Response
+    }
+    return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+function postCalls(fetchMock: ReturnType<typeof stubFetch>) {
+  return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+}
 
 function createTestRouter() {
   return createRouter({
@@ -11,38 +46,178 @@ function createTestRouter() {
   })
 }
 
+async function mountPage() {
+  const router = createTestRouter()
+  await router.push('/interesse/campaign-1')
+  await router.isReady()
+
+  const wrapper = mount(InterestCampaign, { global: { plugins: [router] } })
+  await flushPromises()
+  return wrapper
+}
+
 describe('InterestCampaign', () => {
   beforeEach(() => {
     token.value = null
+    localStorage.clear()
     document.head.innerHTML = ''
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          institutionName: 'Escola Real',
-          institutionLogoUrl: 'https://cdn.test/logo.png',
-          institutionBannerUrl: 'https://cdn.test/banner.png',
-          periodLabel: 'Março 2026',
-          questionText: 'Quais dias você tem disponíveis?',
-          isAcceptingResponses: true,
-        }),
-      })
-    )
+    window.history.replaceState(window.history.state, '', '/interesse/campaign-1')
+    vi.mocked(redirectToLogin).mockReset()
   })
 
-  it('renders the public campaign without an authentication token', async () => {
-    const router = createTestRouter()
-    await router.push('/interesse/campaign-1')
-    await router.isReady()
+  it('toggles the day buttons and reflects the selection through aria-pressed', async () => {
+    stubFetch()
+    const wrapper = await mountPage()
 
-    const wrapper = mount(InterestCampaign, { global: { plugins: [router] } })
+    expect(wrapper.findAll('[data-testid^="day-toggle-"]')).toHaveLength(7)
+
+    const monday = wrapper.get('[data-testid="day-toggle-monday"]')
+    expect(monday.attributes('type')).toBe('button')
+    expect(monday.attributes('aria-pressed')).toBe('false')
+    expect(wrapper.find('select').exists()).toBe(false)
+
+    await monday.trigger('click')
+    expect(monday.attributes('aria-pressed')).toBe('true')
+
+    await monday.trigger('click')
+    expect(monday.attributes('aria-pressed')).toBe('false')
+  })
+
+  it('stores pending days and redirects to login without calling the API when unauthenticated', async () => {
+    const fetchMock = stubFetch()
+    const wrapper = await mountPage()
+
+    await wrapper.get('[data-testid="day-toggle-monday"]').trigger('click')
+    await wrapper.get('[data-testid="day-toggle-friday"]').trigger('click')
+    await wrapper.get('.response-form').trigger('submit')
     await flushPromises()
+
+    expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBe(
+      JSON.stringify(['monday', 'friday'])
+    )
+    expect(redirectToLogin).toHaveBeenCalledTimes(1)
+    expect(redirectToLogin).toHaveBeenCalledWith({ resume_days: 'monday,friday' })
+    expect(postCalls(fetchMock)).toHaveLength(0)
+  })
+
+  it('posts the response, records it, and shows the WhatsApp confirmation when authenticated', async () => {
+    token.value = 'test-token'
+    const fetchMock = stubFetch()
+    const wrapper = await mountPage()
+
+    await wrapper.get('[data-testid="day-toggle-tuesday"]').trigger('click')
+    await wrapper.get('[data-testid="day-toggle-saturday"]').trigger('click')
+    await wrapper.get('.response-form').trigger('submit')
+    await flushPromises()
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://id-api.test/interest-campaigns/campaign-1/respond',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+        body: JSON.stringify({ daysAvailable: ['tuesday', 'saturday'] }),
+      })
+    )
+    expect(localStorage.getItem('interest_campaign_responded:campaign-1')).toBe('true')
+    expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBeNull()
+    expect(redirectToLogin).not.toHaveBeenCalled()
+    expect(wrapper.find('.response-form').exists()).toBe(false)
+
+    const confirmation = wrapper.get('[data-testid="confirmation-state"]')
+    expect(confirmation.text()).toContain('Obrigado')
+    expect(confirmation.get('a').attributes('href')).toMatch(/^https:\/\/wa\.me\/\?text=/)
+  })
+
+  it('prefills from resume_days on return, removes only that param, and clears pending', async () => {
+    token.value = 'test-token'
+    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['sunday']))
+    window.history.replaceState(
+      window.history.state,
+      '',
+      '/interesse/campaign-1?keep=1&resume_days=monday,friday'
+    )
+    const fetchMock = stubFetch()
+
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[data-testid="day-toggle-monday"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="day-toggle-friday"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="day-toggle-sunday"]').attributes('aria-pressed')).toBe('false')
+    expect(postCalls(fetchMock)).toHaveLength(0)
+
+    const params = new URLSearchParams(window.location.search)
+    expect(params.get('keep')).toBe('1')
+    expect(params.has('resume_days')).toBe(false)
+    expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBeNull()
+  })
+
+  it('prefills from the pending storage fallback when the URL has no resume_days', async () => {
+    token.value = 'test-token'
+    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['wednesday']))
+    const fetchMock = stubFetch()
+
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[data-testid="day-toggle-wednesday"]').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-testid="day-toggle-monday"]').attributes('aria-pressed')).toBe('false')
+    expect(postCalls(fetchMock)).toHaveLength(0)
+    expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBeNull()
+  })
+
+  it('skips straight to the confirmation state when the response was already recorded', async () => {
+    localStorage.setItem('interest_campaign_responded:campaign-1', 'true')
+    const fetchMock = stubFetch()
+
+    const wrapper = await mountPage()
+
+    expect(wrapper.get('[data-testid="confirmation-state"]').text()).toContain('Obrigado')
+    expect(wrapper.find('.response-form').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="confirm-response-button"]').exists()).toBe(false)
+    expect(postCalls(fetchMock)).toHaveLength(0)
+  })
+
+  it('does not restore a selection and shows the closed state when the campaign stopped accepting responses', async () => {
+    token.value = 'test-token'
+    localStorage.setItem('interest_campaign_pending:campaign-1', JSON.stringify(['monday']))
+    window.history.replaceState(
+      window.history.state,
+      '',
+      '/interesse/campaign-1?resume_days=monday,friday'
+    )
+    const fetchMock = stubFetch({ isAcceptingResponses: false })
+
+    const wrapper = await mountPage()
+
+    expect(wrapper.text()).toContain('Essa campanha não está mais aceitando respostas')
+    expect(wrapper.find('.response-form').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="confirm-response-button"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid^="day-toggle-"]')).toHaveLength(0)
+    expect(postCalls(fetchMock)).toHaveLength(0)
+  })
+
+  it('shows a validation error and does not call the API or redirect when no day is selected', async () => {
+    const fetchMock = stubFetch()
+    const wrapper = await mountPage()
+
+    await wrapper.get('.response-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('.form-error').text()).toBe('Selecione pelo menos um dia da semana.')
+    expect(redirectToLogin).not.toHaveBeenCalled()
+    expect(postCalls(fetchMock)).toHaveLength(0)
+    expect(localStorage.getItem('interest_campaign_pending:campaign-1')).toBeNull()
+
+    await wrapper.get('[data-testid="day-toggle-monday"]').trigger('click')
+    expect(wrapper.find('.form-error').exists()).toBe(false)
+  })
+
+  it('renders the public campaign without a token and sets noindex and og:image', async () => {
+    stubFetch()
+    const wrapper = await mountPage()
 
     expect(wrapper.text()).toContain('Escola Real')
     expect(wrapper.text()).toContain('Quais dias você tem disponíveis?')
-    expect(wrapper.get('[data-testid="interest-button"]').text()).toBe('Tenho interesse')
+    expect(wrapper.get('[data-testid="confirm-response-button"]').text()).toBe('Confirmar interesse')
     expect(document.head.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe(
       'noindex,nofollow'
     )
@@ -51,62 +226,14 @@ describe('InterestCampaign', () => {
     )
   })
 
-  it('submits selected days and offers a WhatsApp share link after authentication', async () => {
-    token.value = 'test-token'
-    vi.mocked(fetch)
-      .mockReset()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          institutionName: 'Escola Real',
-          periodLabel: 'Março 2026',
-          questionText: 'Quais dias você tem disponíveis?',
-          isAcceptingResponses: true,
-        }),
-      } as Response)
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ success: true }),
-      } as Response)
-
-    const router = createTestRouter()
-    await router.push('/interesse/campaign-1')
-    await router.isReady()
-
-    const wrapper = mount(InterestCampaign, { global: { plugins: [router] } })
-    await flushPromises()
-    await wrapper.get('[data-testid="interest-button"]').trigger('click')
-    await wrapper.get('[data-testid="days-select"]').setValue(['monday', 'friday'])
-    await wrapper.get('.response-form').trigger('submit')
-    await flushPromises()
-
-    expect(fetch).toHaveBeenNthCalledWith(
-      2,
-      'https://id-api.test/interest-campaigns/campaign-1/respond',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
-        body: JSON.stringify({ daysAvailable: ['monday', 'friday'] }),
-      })
-    )
-    expect(wrapper.get('[data-testid="confirmation-state"]').text()).toContain('Obrigado')
-    expect(wrapper.get('a').attributes('href')).toMatch(/^https:\/\/wa\.me\/\?text=/)
-  })
-
   it('updates the static og:image in place instead of duplicating it, and restores it on unmount', async () => {
     const staticImage = document.createElement('meta')
     staticImage.setAttribute('property', 'og:image')
     staticImage.setAttribute('content', 'https://cdn.hemocione.com.br/generic-og.png')
     document.head.appendChild(staticImage)
 
-    const router = createTestRouter()
-    await router.push('/interesse/campaign-1')
-    await router.isReady()
-
-    const wrapper = mount(InterestCampaign, { global: { plugins: [router] } })
-    await flushPromises()
+    stubFetch()
+    const wrapper = await mountPage()
 
     const ogImageTags = document.head.querySelectorAll('meta[property="og:image"]')
     expect(ogImageTags).toHaveLength(1)
@@ -119,25 +246,15 @@ describe('InterestCampaign', () => {
     expect(restoredTags[0].getAttribute('content')).toBe('https://cdn.hemocione.com.br/generic-og.png')
   })
 
-  it('disables interest when the public campaign is closed', async () => {
-    vi.mocked(fetch).mockReset().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        institutionName: 'Escola Real',
-        periodLabel: 'Março 2026',
-        questionText: 'Quais dias você tem disponíveis?',
-        isAcceptingResponses: false,
-      }),
-    } as Response)
-    const router = createTestRouter()
-    await router.push('/interesse/campaign-1')
-    await router.isReady()
+  it('shows an error state and no form when the campaign cannot be loaded', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) } as Response)
+    )
 
-    const wrapper = mount(InterestCampaign, { global: { plugins: [router] } })
-    await flushPromises()
+    const wrapper = await mountPage()
 
-    expect(wrapper.text()).toContain('Essa campanha não está mais aceitando respostas')
-    expect(wrapper.get('[data-testid="interest-button"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.campaign-error').text()).toContain('request failed: 500')
+    expect(wrapper.find('.response-form').exists()).toBe(false)
   })
 })
