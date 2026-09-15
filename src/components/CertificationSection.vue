@@ -14,6 +14,38 @@ const props = defineProps<{
   institution?: Institution
 }>()
 
+const MONTH_NAMES = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+] as const
+
+function formatPeriod(date: Date) {
+  return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`
+}
+
+function buildPeriodOptions(count = 12) {
+  const options: { value: string; label: string }[] = []
+  const now = new Date()
+  for (let offset = 0; offset < count; offset += 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+    const label = formatPeriod(date)
+    options.push({ value: label, label })
+  }
+  return options
+}
+
+const periodOptions = buildPeriodOptions()
+
 const campaigns = ref<InterestCampaign[]>([])
 const loading = ref(true)
 const saving = ref(false)
@@ -22,7 +54,7 @@ const loadErrorMessage = ref<string | null>(null)
 const errorMessage = ref<string | null>(null)
 const copied = ref(false)
 const generatedLink = ref<string | null>(null)
-const periodLabel = ref('')
+const periodLabel = ref(periodOptions[0]?.value ?? '')
 const durationDays = ref(7)
 const startDate = ref(today())
 
@@ -175,7 +207,7 @@ async function createCampaign() {
     const id = campaignIdFrom(createdCampaign)
     if (!id) throw new Error('A campanha foi criada sem identificador.')
     generatedLink.value = publicCampaignUrl(id)
-    periodLabel.value = ''
+    periodLabel.value = periodOptions[0]?.value ?? ''
     await loadCampaigns()
   } catch (error) {
     errorMessage.value = errorText(error)
@@ -282,7 +314,11 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
         </div>
         <label class="field">
           Período
-          <input v-model="periodLabel" type="text" placeholder="Ex.: Março 2026" data-testid="period-input" />
+          <select v-model="periodLabel" data-testid="period-input">
+            <option v-for="option in periodOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
         </label>
         <div class="form-grid">
           <label class="field">
