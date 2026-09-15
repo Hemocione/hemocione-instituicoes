@@ -38,6 +38,11 @@ function handleLogout() {
       <div v-if="!isPublicRoute" class="topbar-actions">
         <OrgSwitcher />
         <button type="button" class="btn btn-secondary" data-testid="logout-button" @click="handleLogout">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+            <path d="m16 17 5-5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
           Sair
         </button>
       </div>

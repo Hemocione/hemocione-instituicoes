@@ -7,6 +7,7 @@ import { config } from '../config'
 import { statusLabel, statusTone } from '../statusLabels'
 import CertificationSection from '../components/CertificationSection.vue'
 import InstitutionImageUploadField from '../components/InstitutionImageUploadField.vue'
+import InstitutionKindIcon from '../components/InstitutionKindIcon.vue'
 
 type CollectionRequestSummary = { id: string; status: string }
 
@@ -65,7 +66,10 @@ onMounted(async () => {
         <div class="dashboard-header">
           <div class="page-heading">
             <p class="page-kicker">Visão geral</p>
-            <h1>{{ activeInstitution()?.name }}</h1>
+            <h1>
+              <InstitutionKindIcon :kind="activeInstitution()?.kind" />
+              <span class="institution-name">{{ activeInstitution()?.name }}</span>
+            </h1>
             <p class="page-description">Acompanhe solicitações e mobilize doadores em um só lugar.</p>
           </div>
           <a
@@ -175,13 +179,22 @@ onMounted(async () => {
   text-transform: uppercase;
 }
 .page-heading h1 {
+  display: flex;
+  align-items: center;
+  gap: var(--hemo-space-2);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.page-heading h1 .institution-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .page-description {
   max-width: 540px;
-  margin-top: var(--hemo-space-2);
+  margin-top: var(--hemo-space-1);
   color: var(--hemo-color-text-muted);
   font-size: 0.9375rem;
 }
