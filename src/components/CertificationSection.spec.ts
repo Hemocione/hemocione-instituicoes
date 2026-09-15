@@ -259,4 +259,85 @@ describe('CertificationSection', () => {
     )
     expect(wrapper.get('.generated-link').findAll('button').find((button) => button.text() === 'Copiar')).toBeTruthy()
   })
+
+  it('renders the 7 day bars always in Seg-to-Dom order even when a later day peaks', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      {
+        id: 'campaign-bars',
+        periodLabel: 'Março 2026',
+        startDate: '2026-03-01',
+        endDate: '2026-03-07',
+        status: 'completed',
+        dayDistribution: { mon: 2, sat: 9 },
+      },
+    ])
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="day-bar"]')
+    expect(rows).toHaveLength(7)
+    const labels = rows.map((row) => row.find('.day-label').text().trim())
+    expect(labels).toEqual(['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'])
+  })
+
+  it('shows the numeric value of each day on its own row', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      {
+        id: 'campaign-values',
+        periodLabel: 'Março 2026',
+        startDate: '2026-03-01',
+        endDate: '2026-03-07',
+        status: 'completed',
+        dayDistribution: { mon: 2, tue: 0, wed: 1, thu: 4, fri: 0, sat: 7, sun: 1 },
+      },
+    ])
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="day-bar"]')
+    expect(rows).toHaveLength(7)
+    const expected: Array<[string, string, string]> = [
+      ['Segunda', '2', 'Segunda: 2 respostas'],
+      ['Terça', '0', 'Terça: 0 respostas'],
+      ['Quarta', '1', 'Quarta: 1 resposta'],
+      ['Quinta', '4', 'Quinta: 4 respostas'],
+      ['Sexta', '0', 'Sexta: 0 respostas'],
+      ['Sábado', '7', 'Sábado: 7 respostas'],
+      ['Domingo', '1', 'Domingo: 1 resposta'],
+    ]
+    rows.forEach((row, index) => {
+      const entry = expected[index]!
+      expect(row.find('.day-value').text().trim()).toBe(entry[1])
+      expect(row.attributes('title')).toBe(entry[2])
+    })
+    const fills = rows.map((row) => row.find('.day-fill').attributes('style') ?? '')
+    expect(fills[5]).toContain('100%')
+    expect(fills[1]).toContain('0%')
+  })
+
+  it('renders 7 zero rows without undefined or NaN when the campaign has no responses', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      {
+        id: 'campaign-empty',
+        periodLabel: 'Março 2026',
+        startDate: '2026-03-01',
+        endDate: '2026-03-07',
+        status: 'completed',
+        dayDistribution: {},
+      },
+    ])
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    const rows = wrapper.findAll('[data-testid="day-bar"]')
+    expect(rows).toHaveLength(7)
+    rows.forEach((row) => {
+      expect(row.find('.day-value').text().trim()).toBe('0')
+    })
+    expect(wrapper.text()).not.toContain('undefined')
+    expect(wrapper.text()).not.toContain('NaN')
+  })
 })
