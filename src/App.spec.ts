@@ -61,16 +61,14 @@ describe('App topbar logout', () => {
     wrapper.unmount()
   })
 
-  it('renders a minimal non-interactive header on public routes', () => {
+  it('renders no header at all on public routes', () => {
     route.meta = { public: true }
     const wrapper = mountApp()
 
-    const topbar = wrapper.get('[data-testid="public-topbar"]')
-    expect(topbar.text().toLowerCase()).toContain('hemocione')
+    expect(wrapper.find('header').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="public-topbar"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="org-switcher"]').exists()).toBe(false)
-    expect(topbar.find('a').exists()).toBe(false)
-    expect(topbar.find('nav').exists()).toBe(false)
 
     wrapper.unmount()
   })

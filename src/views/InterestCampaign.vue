@@ -292,11 +292,37 @@ onUnmounted(() => {
 
 <style scoped>
 .interest-page {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 24px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.interest-page .loading-state,
+.interest-page .campaign-error {
+  width: 100%;
   max-width: 620px;
-  padding-top: var(--hemo-space-7);
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  margin: auto;
 }
 .public-campaign {
   overflow: hidden;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 620px;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  margin: auto;
   padding: 0;
   border-radius: var(--hemo-radius-lg);
 }
@@ -473,6 +499,34 @@ onUnmounted(() => {
 @media (min-width: 640px) {
   .days-grid {
     grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .interest-page {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+  .interest-page .loading-state,
+  .interest-page .campaign-error {
+    max-width: none;
+    max-height: 100vh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+  .public-campaign {
+    max-width: none;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 }
 
