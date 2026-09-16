@@ -8,7 +8,7 @@ import { statusLabel, statusTone } from '../statusLabels'
 import { certificationStatusLabel, certificationStatusTone, getCertificationStatus } from '../certification'
 import InstitutionImageUploadField from '../components/InstitutionImageUploadField.vue'
 import InstitutionKindIcon from '../components/InstitutionKindIcon.vue'
-import { computeSubscriptionTrend, pickFeaturedEvent, type EventSummary } from '../eventWindows'
+import { computeSubscriptionTrend, pickFeaturedEvent, type EventSummary, type SubscriberRecord } from '../eventWindows'
 
 type CollectionRequestSummary = {
   id: string
@@ -19,7 +19,7 @@ type CollectionRequestSummary = {
 const requests = ref<CollectionRequestSummary[]>([])
 const certificationCampaigns = ref<InterestCampaign[]>([])
 const events = ref<EventSummary[]>([])
-const featuredEventSubscribers = ref<{ total: number; items: { createdAt: string }[] }>({ total: 0, items: [] })
+const featuredEventSubscribers = ref<{ total: number; items: SubscriberRecord[] }>({ total: 0, items: [] })
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
 
