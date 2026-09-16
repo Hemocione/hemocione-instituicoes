@@ -203,7 +203,7 @@ describe('Dashboard certification summary', () => {
     await flushPromises()
 
     expect(wrapper.get('#requests-title').text()).toContain('Meus pedidos')
-    expect(wrapper.get('[data-testid="certification-summary"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="certification-summary"]').exists()).toBe(true)
     expect(wrapper.find('.error-message').exists()).toBe(false)
     wrapper.unmount()
   })
