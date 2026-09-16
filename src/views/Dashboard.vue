@@ -1,25 +1,40 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { coletaApi, idApi, type InterestCampaign } from '../api'
+import { coletaApi, digitalEventApi, idApi, type InterestCampaign } from '../api'
 import { institutions, activeInstitutionId, setInstitutions, activeInstitution } from '../institution'
 import { config } from '../config'
 import { statusLabel, statusTone } from '../statusLabels'
 import { certificationStatusLabel, certificationStatusTone, getCertificationStatus } from '../certification'
 import InstitutionImageUploadField from '../components/InstitutionImageUploadField.vue'
 import InstitutionKindIcon from '../components/InstitutionKindIcon.vue'
+import { computeSubscriptionTrend, pickFeaturedEvent, type EventSummary, type SubscriberRecord } from '../eventWindows'
 
-type CollectionRequestSummary = { id: string; status: string }
+type CollectionRequestSummary = {
+  id: string
+  status: string
+  counterProposal?: { proposedDates: { date: string; startTime: string }[] }
+}
 
 const requests = ref<CollectionRequestSummary[]>([])
 const certificationCampaigns = ref<InterestCampaign[]>([])
+const events = ref<EventSummary[]>([])
+const featuredEventSubscribers = ref<{ total: number; items: SubscriberRecord[] }>({ total: 0, items: [] })
 const loading = ref(true)
 const errorMessage = ref<string | null>(null)
 
 const certificationStatus = computed(() => getCertificationStatus(activeInstitution(), certificationCampaigns.value))
+const featuredEvent = computed(() => pickFeaturedEvent(events.value, new Date()))
+const subscriberTrend = computed(() => computeSubscriptionTrend(featuredEventSubscribers.value.items, new Date()))
 
 function newRequestUrl(institutionId: string) {
   return `${config.hemocioneColetaUrl}/agendar?institutionId=${encodeURIComponent(institutionId)}`
+}
+
+function nextProposedDate(request: CollectionRequestSummary): string | null {
+  const firstDate = request.counterProposal?.proposedDates?.[0]
+  if (!firstDate) return null
+  return new Date(firstDate.date).toLocaleDateString('pt-BR')
 }
 
 async function loadRequests(institutionId: string) {
@@ -33,6 +48,31 @@ async function loadCertificationCampaigns(institutionId: string) {
   } catch {
     certificationCampaigns.value = []
   }
+}
+
+async function loadEvents(institutionId: string) {
+  const data = await digitalEventApi.listEventsForInstitution(institutionId)
+  events.value = data.items ?? []
+
+  const featured = pickFeaturedEvent(events.value, new Date())
+  if (featured) {
+    featuredEventSubscribers.value = await digitalEventApi.getEventSubscribers(institutionId, featured.slug)
+  }
+}
+
+function downloadSubscribersCsv() {
+  const rows = featuredEventSubscribers.value.items
+  const header = 'nome,email,telefone,documento\n'
+  const body = rows
+    .map((row) => [row.name, row.email, row.phone, row.document].map((value) => `"${value ?? ''}"`).join(','))
+    .join('\n')
+  const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `inscritos-${featuredEvent.value?.slug ?? 'evento'}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 function updateInstitutionImage(kind: 'logo' | 'banner', url: string) {
@@ -49,6 +89,7 @@ onMounted(async () => {
       await Promise.all([
         loadRequests(activeInstitutionId.value),
         loadCertificationCampaigns(activeInstitutionId.value),
+        loadEvents(activeInstitutionId.value),
       ])
     }
   } catch (error) {
@@ -75,6 +116,7 @@ onMounted(async () => {
         </span>
         <strong class="empty-state-title">Você ainda não tem instituição associada.</strong>
         <span class="empty-state-description">Associe uma instituição para acompanhar seus pedidos de coleta.</span>
+        <RouterLink to="/instituicoes/nova" class="btn btn-primary">Cadastrar minha instituição</RouterLink>
       </div>
       <template v-else>
         <div class="dashboard-header">
@@ -140,6 +182,9 @@ onMounted(async () => {
               <span class="request-card-content">
                 <span class="request-label">Solicitação de coleta</span>
                 <span class="request-id">Pedido {{ request.id }}</span>
+                <span v-if="nextProposedDate(request)" data-testid="request-next-date" class="request-next-date">
+                  Proposta: {{ nextProposedDate(request) }}
+                </span>
               </span>
               <span class="request-card-action">
                 <span class="pill" :class="`pill-${statusTone(request.status)}`">{{ statusLabel(request.status) }}</span>
@@ -155,6 +200,35 @@ onMounted(async () => {
             </span>
             <strong class="empty-state-title">Nenhum pedido de coleta ainda.</strong>
             <span class="empty-state-description">Quando você criar um pedido, o acompanhamento aparecerá aqui.</span>
+          </div>
+        </section>
+
+        <section v-if="activeInstitutionId" class="events-section" aria-labelledby="events-title">
+          <div class="section-heading">
+            <p class="section-kicker">Programação</p>
+            <h2 id="events-title">Meus eventos</h2>
+          </div>
+
+          <div v-if="featuredEvent" class="card featured-event-card">
+            <strong data-testid="featured-event-name">{{ featuredEvent.name }}</strong>
+            <p data-testid="featured-event-subscribers">{{ featuredEventSubscribers.total }} inscritos</p>
+            <p class="trend">
+              {{ subscriberTrend.lastHour }} na última hora
+              ({{ subscriberTrend.previousHour }} na hora anterior)
+            </p>
+            <button type="button" class="btn btn-secondary" data-testid="download-subscribers" @click="downloadSubscribersCsv">
+              Baixar lista de inscritos
+            </button>
+          </div>
+
+          <div v-if="events.length" class="event-list">
+            <div v-for="event in events" :key="event._id" data-testid="event-list-item" class="card event-list-row">
+              <span>{{ event.name }}</span>
+              <span>{{ new Date(event.startAt).toLocaleDateString('pt-BR') }}</span>
+            </div>
+          </div>
+          <div v-else class="empty-state card">
+            <span>Nenhum evento ainda.</span>
           </div>
         </section>
 
@@ -261,6 +335,38 @@ onMounted(async () => {
 .requests-section {
   margin-bottom: var(--hemo-space-8);
 }
+.events-section {
+  margin-bottom: var(--hemo-space-8);
+}
+.featured-event-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--hemo-space-2);
+  margin-bottom: var(--hemo-space-3);
+}
+.featured-event-card p {
+  margin: 0;
+  color: var(--hemo-color-text-muted);
+}
+.featured-event-card .trend {
+  font-size: 0.875rem;
+}
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hemo-space-3);
+}
+.event-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--hemo-space-4);
+}
+.event-list-row span:last-child {
+  color: var(--hemo-color-text-muted);
+  font-size: 0.875rem;
+}
 .certification-summary-section {
   margin-top: var(--hemo-space-8);
 }
@@ -335,6 +441,10 @@ onMounted(async () => {
   font-weight: 600;
   font-size: 0.9375rem;
   color: var(--hemo-color-black-100);
+}
+.request-next-date {
+  color: var(--hemo-color-text-muted);
+  font-size: 0.8125rem;
 }
 .request-card-action {
   flex-shrink: 0;

@@ -1,5 +1,6 @@
 import { token, logout, redirectToLogin } from './auth'
 import type { Institution } from './institution'
+import type { EventSummary, SubscriberRecord } from './eventWindows'
 
 export class ApiError extends Error {
   readonly status: number
@@ -49,6 +50,40 @@ async function publicFetch(baseUrl: string, path: string) {
 }
 
 export type EventBranding = { banner?: string; logo?: string; address?: string }
+
+export type CreateInstitutionPayload = {
+  name: string
+  legalName?: string
+  document: string
+  kind: 'company' | 'school' | 'university'
+  address: string
+  phone: string
+  city: string
+  state: string
+  createdVia: 'self_service_instituicoes'
+  website?: string
+}
+
+export type Member = {
+  id: string
+  userId: string
+  role: string
+  user: { id: string; givenName: string; surName: string; email: string }
+}
+
+export type PendingInvite = {
+  id: string
+  invitedEmail: string
+  role: string
+  expiresAt: string
+  createdAt: string
+}
+
+export type InviteContext = {
+  targetType: 'institution' | 'blood_bank'
+  targetId: string
+  role: string
+}
 
 export const coletaApi = {
   listCollectionRequests(institutionId: string, status?: string) {
@@ -116,6 +151,80 @@ export const idApi = {
     }))
   },
 
+  createInstitution(payload: CreateInstitutionPayload) {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, '/institutions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  },
+
+  getMembers(institutionId: string): Promise<{ members: Member[] }> {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/institutions/${institutionId}/members`)
+  },
+
+  inviteMember(institutionId: string, email: string, role: 'admin' | 'staff') {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/invites`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role }),
+      }
+    )
+  },
+
+  updateMemberRole(institutionId: string, userId: string, role: 'admin' | 'staff') {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/members/${userId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      }
+    )
+  },
+
+  removeMember(institutionId: string, userId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/members/${userId}`,
+      { method: 'DELETE' }
+    )
+  },
+
+  leaveInstitution(institutionId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/members/me`,
+      { method: 'DELETE' }
+    )
+  },
+
+  listInvites(institutionId: string): Promise<{ invites: PendingInvite[] }> {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/institutions/${institutionId}/invites`)
+  },
+
+  revokeInvite(institutionId: string, inviteId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/invites/${inviteId}`,
+      { method: 'DELETE' }
+    )
+  },
+
+  getInvite(token: string): Promise<InviteContext> {
+    return publicFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/invites/${token}`)
+  },
+
+  acceptInvite(token: string) {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/invites/${token}/accept`, {
+      method: 'POST',
+    })
+  },
+
   listInterestCampaigns(institutionId: string): Promise<InterestCampaign[]> {
     return authedFetch(
       import.meta.env.VITE_HEMOCIONE_ID_API_URL,
@@ -176,6 +285,20 @@ export const digitalEventApi = {
     return authedFetch(
       import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
       `/api/v1/event?institutionId=${encodeURIComponent(institutionId)}`
+    )
+  },
+
+  listEventsForInstitution(institutionId: string): Promise<{ total: number; items: EventSummary[] }> {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
+      `/api/v1/institutions/${institutionId}/events`
+    )
+  },
+
+  getEventSubscribers(institutionId: string, eventSlug: string): Promise<{ total: number; items: SubscriberRecord[] }> {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
+      `/api/v1/institutions/${institutionId}/events/${eventSlug}/subscribers`
     )
   },
 }

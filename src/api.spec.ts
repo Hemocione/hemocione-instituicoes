@@ -153,6 +153,42 @@ describe('idApi interest campaigns', () => {
   })
 })
 
+describe('digitalEventApi institution events', () => {
+  beforeEach(() => {
+    token.value = 'test-token'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ total: 0, items: [] }),
+      })
+    )
+  })
+
+  it('lista eventos da instituição com Authorization', async () => {
+    await digitalEventApi.listEventsForInstitution('inst-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL}/api/v1/institutions/inst-1/events`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+  })
+
+  it('lista inscritos de um evento da instituição com Authorization', async () => {
+    await digitalEventApi.getEventSubscribers('inst-1', 'evento-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL}/api/v1/institutions/inst-1/events/evento-1/subscribers`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+  })
+})
+
 describe('authenticated 401 responses', () => {
   beforeEach(() => {
     token.value = 'test-token'
@@ -181,5 +217,109 @@ describe('authenticated 401 responses', () => {
 
     expect(logout).toHaveBeenCalledOnce()
     expect(redirectToLogin).toHaveBeenCalledOnce()
+  })
+})
+
+describe('idApi membership', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn())
+    token.value = 'jwt-123'
+  })
+
+  it('getMembers chama GET /institutions/:id/members com Authorization', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({ members: [] }) } as Response)
+
+    await idApi.getMembers('inst-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/institutions/inst-1/members`,
+      expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer jwt-123' }) })
+    )
+  })
+
+  it('inviteMember faz POST com email e role no corpo', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 201, json: async () => ({ message: 'ok' }) } as Response)
+
+    await idApi.inviteMember('inst-1', 'a@b.com', 'staff')
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(init?.body as string)).toEqual({ email: 'a@b.com', role: 'staff' })
+  })
+
+  it('updateMemberRole faz PUT em /members/:userId', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({ message: 'ok', member: {} }) } as Response)
+
+    await idApi.updateMemberRole('inst-1', 'user-2', 'admin')
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toBe(`${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/institutions/inst-1/members/user-2`)
+    expect(init?.method).toBe('PUT')
+  })
+
+  it('removeMember faz DELETE em /members/:userId', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({ message: 'ok' }) } as Response)
+
+    await idApi.removeMember('inst-1', 'user-2')
+
+    const [, init] = vi.mocked(fetch).mock.calls[0]
+    expect(init?.method).toBe('DELETE')
+  })
+
+  it('leaveInstitution faz DELETE em /members/me', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({ message: 'ok' }) } as Response)
+
+    await idApi.leaveInstitution('inst-1')
+
+    const [url] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toBe(`${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/institutions/inst-1/members/me`)
+  })
+
+  it('listInvites chama GET /invites', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({ invites: [] }) } as Response)
+
+    await idApi.listInvites('inst-1')
+
+    const [url] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toBe(`${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/institutions/inst-1/invites`)
+  })
+
+  it('revokeInvite faz DELETE em /invites/:inviteId', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, status: 200, json: async () => ({ message: 'ok' }) } as Response)
+
+    await idApi.revokeInvite('inst-1', 'inv-1')
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toBe(`${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/institutions/inst-1/invites/inv-1`)
+    expect(init?.method).toBe('DELETE')
+  })
+
+  it('getInvite chama o endpoint público sem Authorization', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ targetType: 'institution', targetId: 'inst-1', role: 'staff' }),
+    } as Response)
+
+    await idApi.getInvite('plain-token')
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toBe(`${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/invites/plain-token`)
+    expect((init?.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined()
+  })
+
+  it('acceptInvite faz POST autenticado em /invites/:token/accept', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ targetType: 'institution', targetId: 'inst-1' }),
+    } as Response)
+
+    await idApi.acceptInvite('plain-token')
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]
+    expect(url).toBe(`${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/invites/plain-token/accept`)
+    expect(init?.method).toBe('POST')
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer jwt-123')
   })
 })
