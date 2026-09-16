@@ -89,7 +89,7 @@ describe('Members', () => {
     await flushPromises()
 
     await wrapper.get('[data-testid="remove-member-user-1"]').trigger('click')
-    expect(wrapper.get('[data-testid="confirm-remove-user-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="confirm-remove-user-1"]').exists()).toBe(true)
 
     await wrapper.get('[data-testid="confirm-remove-user-1"]').trigger('click')
     await flushPromises()
