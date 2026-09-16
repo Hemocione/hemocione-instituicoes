@@ -153,6 +153,42 @@ describe('idApi interest campaigns', () => {
   })
 })
 
+describe('digitalEventApi institution events', () => {
+  beforeEach(() => {
+    token.value = 'test-token'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ total: 0, items: [] }),
+      })
+    )
+  })
+
+  it('lista eventos da instituição com Authorization', async () => {
+    await digitalEventApi.listEventsForInstitution('inst-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL}/api/v1/institutions/inst-1/events`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+  })
+
+  it('lista inscritos de um evento da instituição com Authorization', async () => {
+    await digitalEventApi.getEventSubscribers('inst-1', 'evento-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL}/api/v1/institutions/inst-1/events/evento-1/subscribers`,
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      })
+    )
+  })
+})
+
 describe('authenticated 401 responses', () => {
   beforeEach(() => {
     token.value = 'test-token'

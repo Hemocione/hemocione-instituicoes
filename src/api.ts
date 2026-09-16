@@ -1,5 +1,6 @@
 import { token, logout, redirectToLogin } from './auth'
 import type { Institution } from './institution'
+import type { EventSummary, SubscriberRecord } from './eventWindows'
 
 export class ApiError extends Error {
   readonly status: number
@@ -284,6 +285,20 @@ export const digitalEventApi = {
     return authedFetch(
       import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
       `/api/v1/event?institutionId=${encodeURIComponent(institutionId)}`
+    )
+  },
+
+  listEventsForInstitution(institutionId: string): Promise<{ total: number; items: EventSummary[] }> {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
+      `/api/v1/institutions/${institutionId}/events`
+    )
+  },
+
+  getEventSubscribers(institutionId: string, eventSlug: string): Promise<{ total: number; items: SubscriberRecord[] }> {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_DIGITAL_EVENT_URL,
+      `/api/v1/institutions/${institutionId}/events/${eventSlug}/subscribers`
     )
   },
 }
