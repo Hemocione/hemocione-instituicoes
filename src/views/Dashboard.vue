@@ -75,6 +75,7 @@ onMounted(async () => {
         </span>
         <strong class="empty-state-title">Você ainda não tem instituição associada.</strong>
         <span class="empty-state-description">Associe uma instituição para acompanhar seus pedidos de coleta.</span>
+        <RouterLink to="/instituicoes/nova" class="btn btn-primary">Cadastrar minha instituição</RouterLink>
       </div>
       <template v-else>
         <div class="dashboard-header">

@@ -46,6 +46,7 @@ function handleLogout() {
       </nav>
       <div class="topbar-actions">
         <OrgSwitcher />
+        <RouterLink to="/instituicoes/nova" class="btn btn-soft" title="Cadastrar outra instituição">+ Nova instituição</RouterLink>
         <button type="button" class="btn btn-secondary" data-testid="logout-button" @click="handleLogout">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
             <path d="m16 17 5-5-5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
