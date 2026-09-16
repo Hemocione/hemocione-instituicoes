@@ -50,6 +50,27 @@ async function publicFetch(baseUrl: string, path: string) {
 
 export type EventBranding = { banner?: string; logo?: string; address?: string }
 
+export type Member = {
+  id: string
+  userId: string
+  role: string
+  user: { id: string; givenName: string; surName: string; email: string }
+}
+
+export type PendingInvite = {
+  id: string
+  invitedEmail: string
+  role: string
+  expiresAt: string
+  createdAt: string
+}
+
+export type InviteContext = {
+  targetType: 'institution' | 'blood_bank'
+  targetId: string
+  role: string
+}
+
 export const coletaApi = {
   listCollectionRequests(institutionId: string, status?: string) {
     const query = status ? `?status=${encodeURIComponent(status)}` : ''
@@ -114,6 +135,72 @@ export const idApi = {
       name: membership.institution.name,
       role: membership.role,
     }))
+  },
+
+  getMembers(institutionId: string): Promise<{ members: Member[] }> {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/institutions/${institutionId}/members`)
+  },
+
+  inviteMember(institutionId: string, email: string, role: 'admin' | 'staff') {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/invites`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, role }),
+      }
+    )
+  },
+
+  updateMemberRole(institutionId: string, userId: string, role: 'admin' | 'staff') {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/members/${userId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      }
+    )
+  },
+
+  removeMember(institutionId: string, userId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/members/${userId}`,
+      { method: 'DELETE' }
+    )
+  },
+
+  leaveInstitution(institutionId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/members/me`,
+      { method: 'DELETE' }
+    )
+  },
+
+  listInvites(institutionId: string): Promise<{ invites: PendingInvite[] }> {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/institutions/${institutionId}/invites`)
+  },
+
+  revokeInvite(institutionId: string, inviteId: string) {
+    return authedFetch(
+      import.meta.env.VITE_HEMOCIONE_ID_API_URL,
+      `/institutions/${institutionId}/invites/${inviteId}`,
+      { method: 'DELETE' }
+    )
+  },
+
+  getInvite(token: string): Promise<InviteContext> {
+    return publicFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/invites/${token}`)
+  },
+
+  acceptInvite(token: string) {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/invites/${token}/accept`, {
+      method: 'POST',
+    })
   },
 
   listInterestCampaigns(institutionId: string): Promise<InterestCampaign[]> {
