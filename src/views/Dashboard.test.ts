@@ -20,7 +20,6 @@ describe('Dashboard — CTA de cadastro quando não há instituição', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     await wrapper.vm.$nextTick()
 
-    const link = wrapper.findComponent({ name: 'RouterLink' })
     expect(wrapper.html()).toContain('Cadastrar minha instituição')
   })
 })
