@@ -51,12 +51,17 @@ async function loadCertificationCampaigns(institutionId: string) {
 }
 
 async function loadEvents(institutionId: string) {
-  const data = await digitalEventApi.listEventsForInstitution(institutionId)
-  events.value = data.items ?? []
+  try {
+    const data = await digitalEventApi.listEventsForInstitution(institutionId)
+    events.value = data.items ?? []
 
-  const featured = pickFeaturedEvent(events.value, new Date())
-  if (featured) {
-    featuredEventSubscribers.value = await digitalEventApi.getEventSubscribers(institutionId, featured.slug)
+    const featured = pickFeaturedEvent(events.value, new Date())
+    if (featured) {
+      featuredEventSubscribers.value = await digitalEventApi.getEventSubscribers(institutionId, featured.slug)
+    }
+  } catch {
+    events.value = []
+    featuredEventSubscribers.value = { total: 0, items: [] }
   }
 }
 
