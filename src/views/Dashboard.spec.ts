@@ -142,4 +142,50 @@ describe('Dashboard certification summary', () => {
     expect(names.some((text) => text.includes('Evento B'))).toBe(true)
     wrapper.unmount()
   })
+
+  it('mostra a data da contraproposta pendente quando o pedido está counter_proposed', async () => {
+    vi.mocked(coletaApi.listCollectionRequests).mockResolvedValue({
+      collectionRequests: [
+        {
+          id: 'req-1',
+          status: 'counter_proposed',
+          counterProposal: {
+            proposedDates: [{ date: '2026-10-01T12:00:00Z', startTime: '09:00' }],
+          },
+        },
+      ],
+    })
+
+    const wrapper = mount(Dashboard, {
+      global: {
+        stubs: {
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          InstitutionImageUploadField: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="request-next-date"]').text()).toContain('01/10/2026')
+    wrapper.unmount()
+  })
+
+  it('não mostra a linha de próxima data quando o pedido não tem contraproposta', async () => {
+    vi.mocked(coletaApi.listCollectionRequests).mockResolvedValue({
+      collectionRequests: [{ id: 'req-1', status: 'pending' }],
+    })
+
+    const wrapper = mount(Dashboard, {
+      global: {
+        stubs: {
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          InstitutionImageUploadField: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="request-next-date"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })

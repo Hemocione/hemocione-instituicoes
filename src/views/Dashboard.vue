@@ -10,7 +10,11 @@ import InstitutionImageUploadField from '../components/InstitutionImageUploadFie
 import InstitutionKindIcon from '../components/InstitutionKindIcon.vue'
 import { computeSubscriptionTrend, pickFeaturedEvent, type EventSummary } from '../eventWindows'
 
-type CollectionRequestSummary = { id: string; status: string }
+type CollectionRequestSummary = {
+  id: string
+  status: string
+  counterProposal?: { proposedDates: { date: string; startTime: string }[] }
+}
 
 const requests = ref<CollectionRequestSummary[]>([])
 const certificationCampaigns = ref<InterestCampaign[]>([])
@@ -25,6 +29,12 @@ const subscriberTrend = computed(() => computeSubscriptionTrend(featuredEventSub
 
 function newRequestUrl(institutionId: string) {
   return `${config.hemocioneColetaUrl}/agendar?institutionId=${encodeURIComponent(institutionId)}`
+}
+
+function nextProposedDate(request: CollectionRequestSummary): string | null {
+  const firstDate = request.counterProposal?.proposedDates?.[0]
+  if (!firstDate) return null
+  return new Date(firstDate.date).toLocaleDateString('pt-BR')
 }
 
 async function loadRequests(institutionId: string) {
@@ -172,6 +182,9 @@ onMounted(async () => {
               <span class="request-card-content">
                 <span class="request-label">Solicitação de coleta</span>
                 <span class="request-id">Pedido {{ request.id }}</span>
+                <span v-if="nextProposedDate(request)" data-testid="request-next-date" class="request-next-date">
+                  Proposta: {{ nextProposedDate(request) }}
+                </span>
               </span>
               <span class="request-card-action">
                 <span class="pill" :class="`pill-${statusTone(request.status)}`">{{ statusLabel(request.status) }}</span>
@@ -428,6 +441,10 @@ onMounted(async () => {
   font-weight: 600;
   font-size: 0.9375rem;
   color: var(--hemo-color-black-100);
+}
+.request-next-date {
+  color: var(--hemo-color-text-muted);
+  font-size: 0.8125rem;
 }
 .request-card-action {
   flex-shrink: 0;
