@@ -6,12 +6,14 @@ import InterestCampaign from './views/InterestCampaign.vue'
 import CertificationPage from './views/CertificationPage.vue'
 import Members from './views/Members.vue'
 import AcceptInvite from './views/AcceptInvite.vue'
+import CreateInstitution from './views/CreateInstitution.vue'
 import { isAuthenticated, redirectToLogin } from './auth'
 
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'dashboard', component: Dashboard },
+    { path: '/instituicoes/nova', name: 'create-institution', component: CreateInstitution },
     { path: '/pedidos/:id', name: 'request-detail', component: RequestDetail },
     { path: '/eventos', name: 'events', component: Events },
     { path: '/:institutionId/certificacao', name: 'certification', component: CertificationPage },
