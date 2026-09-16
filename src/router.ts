@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Dashboard from './views/Dashboard.vue'
 import RequestDetail from './views/RequestDetail.vue'
-import Events from './views/Events.vue'
 import InterestCampaign from './views/InterestCampaign.vue'
 import CertificationPage from './views/CertificationPage.vue'
 import Members from './views/Members.vue'
@@ -15,7 +14,7 @@ export const router = createRouter({
     { path: '/', name: 'dashboard', component: Dashboard },
     { path: '/instituicoes/nova', name: 'create-institution', component: CreateInstitution },
     { path: '/pedidos/:id', name: 'request-detail', component: RequestDetail },
-    { path: '/eventos', name: 'events', component: Events },
+    { path: '/eventos', redirect: '/' },
     { path: '/:institutionId/certificacao', name: 'certification', component: CertificationPage },
     { path: '/:institutionId/membros', name: 'members', component: Members },
     { path: '/interesse/:campaignId', name: 'interest-campaign', component: InterestCampaign, meta: { public: true } },
