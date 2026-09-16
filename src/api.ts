@@ -50,6 +50,19 @@ async function publicFetch(baseUrl: string, path: string) {
 
 export type EventBranding = { banner?: string; logo?: string; address?: string }
 
+export type CreateInstitutionPayload = {
+  name: string
+  legalName?: string
+  document: string
+  kind: 'company' | 'school' | 'university'
+  address: string
+  phone: string
+  city: string
+  state: string
+  createdVia: 'self_service_instituicoes'
+  website?: string
+}
+
 export type Member = {
   id: string
   userId: string
@@ -135,6 +148,14 @@ export const idApi = {
       name: membership.institution.name,
       role: membership.role,
     }))
+  },
+
+  createInstitution(payload: CreateInstitutionPayload) {
+    return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, '/institutions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
   },
 
   getMembers(institutionId: string): Promise<{ members: Member[] }> {
