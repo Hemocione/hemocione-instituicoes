@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import App from './App.vue'
+import { activeInstitutionId, institutions, setInstitutions } from './institution'
 
 const { route, logoutMock, redirectToLoginMock } = vi.hoisted(() => ({
   route: { meta: {} as Record<string, unknown> },
@@ -34,6 +35,9 @@ describe('App topbar logout', () => {
     route.meta = {}
     logoutMock.mockReset()
     redirectToLoginMock.mockReset()
+    localStorage.clear()
+    institutions.value = []
+    activeInstitutionId.value = null
   })
 
   it('shows the logout button on private routes and hides it on public routes', () => {
@@ -70,6 +74,24 @@ describe('App topbar logout', () => {
     expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="org-switcher"]').exists()).toBe(false)
 
+    wrapper.unmount()
+  })
+
+  it('mostra o link de Membros só para admin', async () => {
+    setInstitutions([{ id: 'inst-1', name: 'Escola Um', role: 'admin' }])
+    const wrapper = mountApp()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="nav-members-link"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('esconde o link de Membros para quem não é admin', async () => {
+    setInstitutions([{ id: 'inst-1', name: 'Escola Um', role: 'staff' }])
+    const wrapper = mountApp()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="nav-members-link"]').exists()).toBe(false)
     wrapper.unmount()
   })
 })

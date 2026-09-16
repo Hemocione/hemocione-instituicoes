@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { logout, redirectToLogin } from './auth'
 import OrgSwitcher from './components/OrgSwitcher.vue'
+import { activeInstitution, activeInstitutionId } from './institution'
 
 const route = useRoute()
 const isPublicRoute = computed(() => route.meta.public === true)
@@ -30,10 +31,18 @@ function handleLogout() {
           <span>instituições</span>
         </span>
       </div>
-      <!-- TODO: reativar quando Meus eventos estiver pronto e o dashboard existir. -->
-      <nav v-if="false" class="nav" aria-label="Navegação principal">
-        <RouterLink to="/">Dashboard</RouterLink>
-        <RouterLink to="/eventos">Meus eventos</RouterLink>
+      <nav class="nav" aria-label="Navegação principal">
+        <template v-if="false">
+          <RouterLink to="/">Dashboard</RouterLink>
+          <RouterLink to="/eventos">Meus eventos</RouterLink>
+        </template>
+        <RouterLink
+          v-if="activeInstitution()?.role === 'admin' && activeInstitutionId"
+          :to="`/${activeInstitutionId}/membros`"
+          data-testid="nav-members-link"
+        >
+          Membros
+        </RouterLink>
       </nav>
       <div class="topbar-actions">
         <OrgSwitcher />

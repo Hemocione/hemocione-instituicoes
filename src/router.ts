@@ -4,6 +4,8 @@ import RequestDetail from './views/RequestDetail.vue'
 import Events from './views/Events.vue'
 import InterestCampaign from './views/InterestCampaign.vue'
 import CertificationPage from './views/CertificationPage.vue'
+import Members from './views/Members.vue'
+import AcceptInvite from './views/AcceptInvite.vue'
 import { isAuthenticated, redirectToLogin } from './auth'
 
 export const router = createRouter({
@@ -13,7 +15,9 @@ export const router = createRouter({
     { path: '/pedidos/:id', name: 'request-detail', component: RequestDetail },
     { path: '/eventos', name: 'events', component: Events },
     { path: '/:institutionId/certificacao', name: 'certification', component: CertificationPage },
+    { path: '/:institutionId/membros', name: 'members', component: Members },
     { path: '/interesse/:campaignId', name: 'interest-campaign', component: InterestCampaign, meta: { public: true } },
+    { path: '/invites/:token', name: 'accept-invite', component: AcceptInvite, meta: { public: true } },
   ],
 })
 
