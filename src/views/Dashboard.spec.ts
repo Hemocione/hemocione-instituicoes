@@ -188,4 +188,23 @@ describe('Dashboard certification summary', () => {
     expect(wrapper.find('[data-testid="request-next-date"]').exists()).toBe(false)
     wrapper.unmount()
   })
+
+  it('mantém pedidos e certificação quando a listagem de eventos falha', async () => {
+    vi.mocked(digitalEventApi.listEventsForInstitution).mockRejectedValue(new Error('403 Forbidden'))
+
+    const wrapper = mount(Dashboard, {
+      global: {
+        stubs: {
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          InstitutionImageUploadField: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('#requests-title').text()).toContain('Meus pedidos')
+    expect(wrapper.find('[data-testid="certification-summary"]').exists()).toBe(true)
+    expect(wrapper.find('.error-message').exists()).toBe(false)
+    wrapper.unmount()
+  })
 })
