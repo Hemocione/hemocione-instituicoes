@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { config } from './config'
+import { resetAnalytics } from './analytics'
 
 const TOKEN_KEY = 'hemocione_token'
 
@@ -17,6 +18,7 @@ export function setToken(value: string) {
 export function logout() {
   token.value = null
   localStorage.removeItem(TOKEN_KEY)
+  resetAnalytics()
 }
 
 // extraQuery travels as part of the redirect URL through the cross-origin login

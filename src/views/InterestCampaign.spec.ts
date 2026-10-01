@@ -3,6 +3,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { flushPromises, mount } from '@vue/test-utils'
 import InterestCampaign from './InterestCampaign.vue'
 import { redirectToLogin, token } from '../auth'
+import { track } from '../analytics'
 
 // Partial mock: keep the real token/isAuthenticated wiring (shared with ../api)
 // and replace only the navigation side effect so it can be asserted.
@@ -10,6 +11,12 @@ vi.mock('../auth', async () => {
   const actual = await vi.importActual<typeof import('../auth')>('../auth')
   return { ...actual, redirectToLogin: vi.fn() }
 })
+
+vi.mock('../analytics', () => ({ track: vi.fn() }))
+
+function trackedEvents() {
+  return vi.mocked(track).mock.calls.map(([event, properties]) => ({ event, properties }))
+}
 
 const campaignResponse = {
   institutionName: 'Escola Real',
@@ -63,6 +70,50 @@ describe('InterestCampaign', () => {
     document.head.innerHTML = ''
     window.history.replaceState(window.history.state, '', '/interesse/campaign-1')
     vi.mocked(redirectToLogin).mockReset()
+    vi.mocked(track).mockReset()
+  })
+
+  it('tracks the anonymous funnel up to the login redirect', async () => {
+    stubFetch()
+    const wrapper = await mountPage()
+
+    await wrapper.get('[data-testid="day-toggle-mon"]').trigger('click')
+    await wrapper.get('form').trigger('submit')
+
+    expect(trackedEvents().map(({ event }) => event)).toEqual([
+      'interest_page_viewed',
+      'interest_submit_clicked',
+      'interest_login_redirected',
+    ])
+    expect(trackedEvents()[0].properties).toMatchObject({
+      campaign_id: 'campaign-1',
+      institution_name: 'Escola Real',
+      is_authenticated: false,
+      returned_from_login: false,
+    })
+    expect(vi.mocked(track).mock.calls[2][2]).toEqual({ beforeNavigation: true })
+  })
+
+  it('tracks the conversion after the return from login', async () => {
+    stubFetch()
+    token.value = 'valid-token'
+    window.history.replaceState(window.history.state, '', '/interesse/campaign-1?resume_days=mon,wed')
+    const wrapper = await mountPage()
+
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(trackedEvents().map(({ event }) => event)).toEqual([
+      'interest_page_viewed',
+      'interest_submit_clicked',
+      'interest_response_submitted',
+    ])
+    expect(trackedEvents()[0].properties).toMatchObject({
+      is_authenticated: true,
+      returned_from_login: true,
+      prefilled_days_count: 2,
+    })
+    expect(trackedEvents()[2].properties).toMatchObject({ returned_from_login: true, days_count: 2 })
   })
 
   it('toggles the day buttons and reflects the selection through aria-pressed', async () => {
