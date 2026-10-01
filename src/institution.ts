@@ -11,9 +11,19 @@ export type Institution = {
 }
 
 export const institutions = ref<Institution[]>([])
+const ACTIVE_INSTITUTION_KEY = 'active_institution_id'
+
 export const activeInstitutionId = ref<string | null>(
-  localStorage.getItem('active_institution_id')
+  localStorage.getItem(ACTIVE_INSTITUTION_KEY)
 )
+
+// Another tab switched the institution: follow it, so every open tab shows the same context.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== ACTIVE_INSTITUTION_KEY) return
+    activeInstitutionId.value = event.newValue
+  })
+}
 
 export function setInstitutions(list: Institution[]) {
   institutions.value = list
@@ -23,14 +33,14 @@ export function setInstitutions(list: Institution[]) {
       setActiveInstitution(list[0].id)
     } else {
       activeInstitutionId.value = null
-      localStorage.removeItem('active_institution_id')
+      localStorage.removeItem(ACTIVE_INSTITUTION_KEY)
     }
   }
 }
 
 export function setActiveInstitution(id: string) {
   activeInstitutionId.value = id
-  localStorage.setItem('active_institution_id', id)
+  localStorage.setItem(ACTIVE_INSTITUTION_KEY, id)
 }
 
 export function activeInstitution() {

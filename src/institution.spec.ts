@@ -31,3 +31,30 @@ describe('setInstitutions', () => {
     expect(activeInstitutionId.value).toBe('inst-real-2')
   })
 })
+
+describe('active institution sync across tabs', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    vi.resetModules()
+  })
+
+  it('updates the active institution when another tab changes it', async () => {
+    localStorage.setItem('active_institution_id', 'inst-real-1')
+    const { activeInstitutionId } = await import('./institution')
+
+    window.dispatchEvent(
+      new StorageEvent('storage', { key: 'active_institution_id', newValue: 'inst-real-2' })
+    )
+
+    expect(activeInstitutionId.value).toBe('inst-real-2')
+  })
+
+  it('ignores storage events for other keys', async () => {
+    localStorage.setItem('active_institution_id', 'inst-real-1')
+    const { activeInstitutionId } = await import('./institution')
+
+    window.dispatchEvent(new StorageEvent('storage', { key: 'other_key', newValue: 'x' }))
+
+    expect(activeInstitutionId.value).toBe('inst-real-1')
+  })
+})
