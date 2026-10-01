@@ -11,7 +11,9 @@ export function initAnalytics(router: Router) {
   if (!key) return
 
   posthog.init(key, {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+    // Same Cloudflare Worker proxy as hemocione-digital-event, so ad blockers do not drop the events.
+    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://hemohog.guima.workers.dev',
+    ui_host: 'https://us.posthog.com',
     person_profiles: 'identified_only',
     capture_pageview: false,
   })

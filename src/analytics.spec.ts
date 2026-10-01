@@ -44,7 +44,7 @@ describe('analytics', () => {
     analytics.initAnalytics(router)
     analytics.track('interest_page_viewed', { campaign_id: 'c-1' })
 
-    expect(posthogMock.init).toHaveBeenCalledWith('phc_test', expect.objectContaining({ capture_pageview: false }))
+    expect(posthogMock.init).toHaveBeenCalledWith('phc_test', expect.objectContaining({ capture_pageview: false, api_host: 'https://hemohog.guima.workers.dev' }))
     expect(posthogMock.capture).toHaveBeenCalledWith('interest_page_viewed', { campaign_id: 'c-1' }, undefined)
   })
 
