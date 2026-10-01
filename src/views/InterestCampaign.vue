@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { idApi, type PublicInterestCampaign } from '../api'
 import { isAuthenticated, redirectToLogin } from '../auth'
+import { track } from '../analytics'
 
 type CampaignStep = 'selection' | 'confirmed'
 
@@ -27,6 +28,19 @@ const weekDays = [
 ]
 
 const validDayValues = new Set(weekDays.map((day) => day.value))
+
+// The login handoff returns to this page with ?resume_days, so its presence marks a return from login.
+const returnedFromLogin = new URLSearchParams(window.location.search).has('resume_days')
+
+function campaignProperties(extra: Record<string, unknown> = {}) {
+  return {
+    campaign_id: campaignId.value,
+    institution_name: campaign.value?.institutionName,
+    is_authenticated: isAuthenticated(),
+    returned_from_login: returnedFromLogin,
+    ...extra,
+  }
+}
 
 function currentPageUrl() {
   return `${window.location.origin}${route.path}`
@@ -101,9 +115,13 @@ async function submitResponse() {
   }
 
   errorMessage.value = null
+  track('interest_submit_clicked', campaignProperties({ days_count: selectedDays.value.length }))
 
   if (!isAuthenticated()) {
     localStorage.setItem(`interest_campaign_pending:${campaignId.value}`, JSON.stringify(selectedDays.value))
+    track('interest_login_redirected', campaignProperties({ days_count: selectedDays.value.length }), {
+      beforeNavigation: true,
+    })
     redirectToLogin({ resume_days: selectedDays.value.join(',') })
     return
   }
@@ -114,8 +132,10 @@ async function submitResponse() {
     localStorage.setItem(`interest_campaign_responded:${campaignId.value}`, 'true')
     localStorage.removeItem(`interest_campaign_pending:${campaignId.value}`)
     step.value = 'confirmed'
+    track('interest_response_submitted', campaignProperties({ days_count: selectedDays.value.length, days: selectedDays.value }))
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Erro desconhecido'
+    track('interest_response_failed', campaignProperties({ error: errorMessage.value }))
   } finally {
     submitting.value = false
   }
@@ -183,8 +203,17 @@ onMounted(async () => {
     campaign.value = await idApi.getPublicInterestCampaign(campaignId.value)
     updateCampaignMeta(campaign.value)
     restorePrefill()
+    track(
+      'interest_page_viewed',
+      campaignProperties({
+        is_accepting_responses: campaign.value.isAcceptingResponses,
+        already_responded: step.value === 'confirmed',
+        prefilled_days_count: selectedDays.value.length,
+      })
+    )
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : 'Erro desconhecido'
+    track('interest_page_load_failed', campaignProperties({ error: errorMessage.value }))
   } finally {
     loading.value = false
   }
@@ -238,7 +267,14 @@ onUnmounted(() => {
           <p class="confirmation-mark" aria-hidden="true">✓</p>
           <h2>Obrigado pelo seu interesse!</h2>
           <p>Sua disponibilidade foi registrada. Compartilhe esta campanha com mais pessoas.</p>
-          <a :href="whatsappUrl" target="_blank" rel="noopener" class="btn btn-secondary campaign-action">
+          <a
+            :href="whatsappUrl"
+            target="_blank"
+            rel="noopener"
+            class="btn btn-secondary campaign-action"
+            data-testid="whatsapp-share"
+            @click="track('interest_whatsapp_clicked', campaignProperties())"
+          >
             Compartilhar no WhatsApp
           </a>
         </section>
