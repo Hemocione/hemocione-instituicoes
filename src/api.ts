@@ -222,6 +222,8 @@ export const idApi = {
   acceptInvite(token: string) {
     return authedFetch(import.meta.env.VITE_HEMOCIONE_ID_API_URL, `/invites/${token}/accept`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
     })
   },
 
@@ -256,7 +258,11 @@ export const idApi = {
     return authedFetch(
       import.meta.env.VITE_HEMOCIONE_ID_API_URL,
       `/institutions/${institutionId}/interest-campaigns/${campaignId}/cancel`,
-      { method: 'PUT' }
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      }
     )
   },
 
