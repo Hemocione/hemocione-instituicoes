@@ -151,6 +151,22 @@ describe('idApi interest campaigns', () => {
       'https://id-api.test/interest-campaigns/campaign-1/public'
     )
   })
+
+  it('cancels an interest campaign with a JSON PUT body', async () => {
+    await idApi.cancelInterestCampaign('inst-1', 'campaign-1')
+
+    expect(fetch).toHaveBeenCalledWith(
+      'https://id-api.test/institutions/inst-1/interest-campaigns/campaign-1/cancel',
+      expect.objectContaining({
+        method: 'PUT',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token',
+          'Content-Type': 'application/json',
+        }),
+        body: '{}',
+      })
+    )
+  })
 })
 
 describe('digitalEventApi institution events', () => {
@@ -321,5 +337,7 @@ describe('idApi membership', () => {
     expect(url).toBe(`${import.meta.env.VITE_HEMOCIONE_ID_API_URL}/invites/plain-token/accept`)
     expect(init?.method).toBe('POST')
     expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer jwt-123')
+    expect((init?.headers as Record<string, string>)['Content-Type']).toBe('application/json')
+    expect(init?.body).toBe('{}')
   })
 })
