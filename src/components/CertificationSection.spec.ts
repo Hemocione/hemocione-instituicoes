@@ -260,6 +260,39 @@ describe('CertificationSection', () => {
     expect(wrapper.get('.generated-link').findAll('button').find((button) => button.text() === 'Copiar')).toBeTruthy()
   })
 
+  it('clears the active campaign and re-enables the create button after cancelling', async () => {
+    vi.mocked(idApi.listInterestCampaigns)
+      .mockResolvedValueOnce([
+        {
+          id: 'campaign-1',
+          periodLabel: 'Março 2026',
+          startDate: '2026-03-01',
+          endDate: '2026-03-07',
+          status: 'active',
+        },
+      ])
+      .mockResolvedValueOnce([])
+    vi.mocked(idApi.cancelInterestCampaign).mockResolvedValue({})
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    const cancelButton = wrapper.get('.active-campaign button')
+    expect(cancelButton.text()).toBe('Cancelar')
+    expect(
+      wrapper.get('[data-testid="create-campaign-form"] button[type="submit"]').attributes('disabled')
+    ).toBeDefined()
+
+    await cancelButton.trigger('click')
+    await flushPromises()
+
+    expect(idApi.cancelInterestCampaign).toHaveBeenCalledWith('inst-1', 'campaign-1')
+    expect(wrapper.find('.active-campaign').exists()).toBe(false)
+    const submitButton = wrapper.get('[data-testid="create-campaign-form"] button[type="submit"]')
+    expect(submitButton.attributes('disabled')).toBeUndefined()
+    expect(submitButton.text()).toContain('Criar link')
+  })
+
   it('renders the 7 day bars always in Seg-to-Dom order even when a later day peaks', async () => {
     vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
       {
