@@ -74,6 +74,28 @@ describe('CertificationSection', () => {
     )
   })
 
+  it('lists the active campaign first in the history, then scheduled, then the rest by start date', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      { id: 'c-new-expired', periodLabel: 'Setembro 2026', startDate: '2026-09-01', endDate: '2026-09-07', status: 'expired' },
+      { id: 'c-cancelled', periodLabel: 'Agosto 2026', startDate: '2026-08-01', endDate: '2026-08-07', status: 'cancelled' },
+      { id: 'c-active', periodLabel: 'Janeiro 2026', startDate: '2026-01-01', endDate: '2026-12-31', status: 'active' },
+      { id: 'c-old-expired', periodLabel: 'Julho 2026', startDate: '2026-07-01', endDate: '2026-07-07', status: 'expired' },
+    ])
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    const cards = wrapper.findAll('.campaign-history-card')
+    expect(cards.map((card) => card.get('strong').text())).toEqual([
+      'Janeiro 2026',
+      'Setembro 2026',
+      'Agosto 2026',
+      'Julho 2026',
+    ])
+    expect(cards[0]!.text()).toContain('Ativa')
+    expect(cards[1]!.text()).toContain('Encerrada')
+  })
+
   it('renders the granted seal status from the institution data', async () => {
     vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([])
 
