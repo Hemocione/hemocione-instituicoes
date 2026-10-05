@@ -62,6 +62,17 @@ const activeCampaign = computed(
   () => campaigns.value.find((campaign) => ['scheduled', 'active'].includes(effectiveCampaignStatus(campaign))) ?? null
 )
 
+const STATUS_ORDER: Record<string, number> = { active: 0, scheduled: 1 }
+
+const sortedCampaigns = computed(() =>
+  [...campaigns.value].sort((a, b) => {
+    const rankA = STATUS_ORDER[effectiveCampaignStatus(a)] ?? 2
+    const rankB = STATUS_ORDER[effectiveCampaignStatus(b)] ?? 2
+    if (rankA !== rankB) return rankA - rankB
+    return String(b.startDate ?? '').localeCompare(String(a.startDate ?? ''))
+  })
+)
+
 const activeCampaignLink = computed(() => {
   const id = activeCampaign.value ? campaignIdFrom(activeCampaign.value) : null
   return id ? publicCampaignUrl(id) : null
@@ -88,6 +99,7 @@ function statusLabel(status: string) {
     scheduled: 'Agendada',
     active: 'Ativa',
     completed: 'Encerrada',
+    expired: 'Encerrada',
     cancelled: 'Cancelada',
   }
   return labels[status] ?? status
@@ -380,7 +392,7 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
           <p class="section-kicker">Registro</p>
           <h4>Histórico de campanhas</h4>
         </div>
-        <div v-for="campaign in campaigns" :key="campaign.id" class="card campaign-history-card">
+        <div v-for="campaign in sortedCampaigns" :key="campaign.id" class="card campaign-history-card">
           <div class="history-header">
             <div>
               <strong>{{ campaign.periodLabel }}</strong>
