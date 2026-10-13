@@ -16,6 +16,8 @@ const errorMessage = ref<string | null>(null)
 const step = ref<CampaignStep>('selection')
 const selectedDays = ref<string[]>([])
 const previousTitle = ref('')
+const position = ref<number | null>(null)
+const remainingAfterResponse = ref<number | null>(null)
 
 const weekDays = [
   { value: 'mon', label: 'Segunda-feira' },
@@ -108,6 +110,78 @@ function toggleDay(value: string) {
   }
 }
 
+function positiveInt(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : null
+}
+
+function nonNegativeInt(value: unknown) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null
+}
+
+function pluralize(count: number, singular: string, plural: string) {
+  return count === 1 ? singular : plural
+}
+
+function progressKey() {
+  return `interest_campaign_progress:${campaignId.value}`
+}
+
+function storeProgress() {
+  if (position.value === null && remainingAfterResponse.value === null) return
+  try {
+    localStorage.setItem(
+      progressKey(),
+      JSON.stringify({ position: position.value, remaining: remainingAfterResponse.value })
+    )
+  } catch {
+    // Storage is a convenience only.
+  }
+}
+
+function restoreProgress() {
+  try {
+    const raw = localStorage.getItem(progressKey())
+    if (!raw) return
+    const parsed = JSON.parse(raw) as { position?: unknown; remaining?: unknown }
+    position.value = positiveInt(parsed.position)
+    remainingAfterResponse.value = nonNegativeInt(parsed.remaining)
+  } catch {
+    position.value = null
+    remainingAfterResponse.value = null
+  }
+}
+
+const socialProgress = computed(() => {
+  const count = nonNegativeInt(campaign.value?.responseCount)
+  if (count === null) return null
+  return count === 0
+    ? 'Seja a primeira pessoa a manifestar interesse'
+    : `${count} ${pluralize(count, 'pessoa já manifestou', 'pessoas já manifestaram')} interesse`
+})
+
+const remainingBefore = computed(() => {
+  const remaining = nonNegativeInt(campaign.value?.remainingToThreshold)
+  return remaining !== null && remaining > 0 ? remaining : null
+})
+
+function remainingPhrase(remaining: number) {
+  return `${pluralize(remaining, 'Falta', 'Faltam')} apenas ${remaining} ${pluralize(remaining, 'pessoa', 'pessoas')}`
+}
+
+const positionMessage = computed(() => {
+  if (position.value === null) return null
+  return position.value === 1
+    ? 'Você foi a primeira pessoa a manifestar interesse!'
+    : `Você é a ${position.value}.ª pessoa a manifestar interesse.`
+})
+
+const remainingMessage = computed(() => {
+  const remaining = remainingAfterResponse.value
+  if (remaining === null) return null
+  if (remaining === 0) return 'Meta atingida! A coleta pode ser confirmada.'
+  return `${remainingPhrase(remaining)} que ${pluralize(remaining, "demonstre", "demonstrem")} interesse para a coleta ser confirmada. Compartilhe com quem você acha que poderia gostar.`
+})
+
 async function submitResponse() {
   if (!selectedDays.value.length) {
     errorMessage.value = 'Selecione pelo menos um dia da semana.'
@@ -128,8 +202,11 @@ async function submitResponse() {
 
   submitting.value = true
   try {
-    await idApi.respondToInterestCampaign(campaignId.value, selectedDays.value)
+    const result = await idApi.respondToInterestCampaign(campaignId.value, selectedDays.value)
+    position.value = positiveInt(result?.position)
+    remainingAfterResponse.value = nonNegativeInt(result?.remainingToThreshold)
     localStorage.setItem(`interest_campaign_responded:${campaignId.value}`, 'true')
+    storeProgress()
     localStorage.removeItem(`interest_campaign_pending:${campaignId.value}`)
     step.value = 'confirmed'
     track('interest_response_submitted', campaignProperties({ days_count: selectedDays.value.length, days: selectedDays.value }))
@@ -149,6 +226,7 @@ function restorePrefill() {
 
   if (localStorage.getItem(respondedKey) === 'true') {
     step.value = 'confirmed'
+    restoreProgress()
     return
   }
 
@@ -191,7 +269,13 @@ function restorePrefill() {
 
 const whatsappUrl = computed(() => {
   const institutionName = campaign.value?.institutionName ?? 'a instituição'
-  const message = `Tenho interesse em participar da campanha de ${institutionName}. Saiba mais: ${currentPageUrl()}`
+  const remaining = remainingAfterResponse.value
+  const message =
+    remaining !== null && remaining > 0
+      ? `Eu manifestei interesse em doar sangue com ${institutionName}. ${remainingPhrase(remaining)} para a coleta ser confirmada. Manifeste o seu: ${currentPageUrl()}`
+      : position.value !== null
+        ? `Eu manifestei interesse em doar sangue com ${institutionName}. Manifeste o seu: ${currentPageUrl()}`
+        : `Tenho interesse em participar da campanha de ${institutionName}. Saiba mais: ${currentPageUrl()}`
   return `https://wa.me/?text=${encodeURIComponent(message)}`
 })
 
@@ -266,7 +350,12 @@ onUnmounted(() => {
         <section v-if="step === 'confirmed'" class="confirmation" data-testid="confirmation-state">
           <p class="confirmation-mark" aria-hidden="true">✓</p>
           <h2>Obrigado pelo seu interesse!</h2>
-          <p>Sua disponibilidade foi registrada. Compartilhe esta campanha com mais pessoas.</p>
+          <p>Sua disponibilidade foi registrada.</p>
+          <p v-if="positionMessage" class="gamification-highlight" data-testid="position-message">
+            {{ positionMessage }}
+          </p>
+          <p v-if="remainingMessage" data-testid="remaining-message">{{ remainingMessage }}</p>
+          <p v-else>Compartilhe esta campanha com mais pessoas.</p>
           <a
             :href="whatsappUrl"
             target="_blank"
@@ -291,7 +380,14 @@ onUnmounted(() => {
             Essa campanha não está mais aceitando respostas.
           </p>
 
-          <form v-else class="response-form" @submit.prevent="submitResponse">
+          <div v-if="campaign.isAcceptingResponses && socialProgress" class="social-progress" data-testid="social-progress">
+            <strong>{{ socialProgress }}</strong>
+            <span v-if="remainingBefore !== null">
+              {{ remainingPhrase(remainingBefore) }} para a coleta ser confirmada
+            </span>
+          </div>
+
+          <form v-if="campaign.isAcceptingResponses" class="response-form" @submit.prevent="submitResponse">
             <fieldset class="days-fieldset">
               <legend class="days-legend">{{ selectorQuestion }}</legend>
               <div class="days-grid">
@@ -503,6 +599,19 @@ onUnmounted(() => {
 .confirmation {
   margin-top: var(--hemo-space-7);
   text-align: center;
+}
+.gamification-highlight {
+  font-weight: 700;
+}
+.social-progress {
+  display: grid;
+  gap: var(--hemo-space-1);
+  margin-top: var(--hemo-space-5);
+  padding: var(--hemo-space-4);
+  border-radius: var(--hemo-radius-md, 8px);
+  background: var(--hemo-color-success-soft);
+  color: var(--hemo-color-success-text);
+  font-size: 0.875rem;
 }
 .confirmation-mark {
   display: grid;

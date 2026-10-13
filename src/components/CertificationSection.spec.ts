@@ -395,4 +395,86 @@ describe('CertificationSection', () => {
     expect(wrapper.text()).not.toContain('undefined')
     expect(wrapper.text()).not.toContain('NaN')
   })
+  it('reads the real backend key daysAvailableDistribution (top-level and aggregate)', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      {
+        id: 'c-top',
+        periodLabel: 'Março 2026',
+        startDate: '2026-03-01',
+        endDate: '2026-03-07',
+        status: 'completed',
+        daysAvailableDistribution: { mon: 3, sat: 6 },
+      },
+      {
+        id: 'c-agg',
+        periodLabel: 'Fevereiro 2026',
+        startDate: '2026-02-01',
+        endDate: '2026-02-07',
+        status: 'completed',
+        aggregate: { daysAvailableDistribution: { tue: 5 } },
+      },
+    ])
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    const values = wrapper.findAll('[data-testid="day-bar"]').map((row) => row.find('.day-value').text().trim())
+    expect(values).toEqual(['3', '0', '0', '0', '0', '6', '0', '0', '5', '0', '0', '0', '0', '0'])
+  })
+
+  it('shows response count and progress to the threshold on the active campaign', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      {
+        id: 'c-active',
+        periodLabel: 'Março 2026',
+        startDate: '2000-01-01',
+        endDate: '2999-12-31',
+        status: 'active',
+        responseCount: 12,
+        thresholdSnapshot: 100,
+      },
+    ])
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="campaign-progress"]').text()).toBe('12 de 100 manifestações · faltam 88')
+  })
+
+  it('degrades to the plain count when no threshold is provided', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([
+      {
+        id: 'c-active',
+        periodLabel: 'Março 2026',
+        startDate: '2000-01-01',
+        endDate: '2999-12-31',
+        status: 'active',
+        responseCount: 1,
+      },
+    ])
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="campaign-progress"]').text()).toBe('1 manifestação')
+  })
+
+  it('accepts a duration of 30 days and rejects 31', async () => {
+    vi.mocked(idApi.listInterestCampaigns).mockResolvedValue([])
+    vi.mocked(idApi.createInterestCampaign).mockResolvedValue({ id: 'new' })
+
+    const wrapper = mount(CertificationSection, { props: { institutionId: 'inst-1', institution } })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="duration-input"]').setValue('31')
+    await wrapper.get('[data-testid="create-campaign-form"]').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('A duração deve estar entre 7 e 30 dias.')
+    expect(idApi.createInterestCampaign).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="duration-input"]').setValue('30')
+    await wrapper.get('[data-testid="create-campaign-form"]').trigger('submit')
+    await flushPromises()
+    expect(idApi.createInterestCampaign).toHaveBeenCalledTimes(1)
+  })
 })

@@ -135,6 +135,20 @@ export type PublicInterestCampaign = {
   periodLabel: string
   questionText: string
   isAcceptingResponses: boolean
+  startDate?: string
+  endDate?: string
+  responseCount?: number
+  threshold?: number
+  remainingToThreshold?: number
+  thresholdReached?: boolean
+}
+
+export type InterestCampaignResponseResult = {
+  response?: unknown
+  position?: number
+  responseCount?: number
+  threshold?: number
+  remainingToThreshold?: number
 }
 
 export const idApi = {
@@ -273,7 +287,7 @@ export const idApi = {
     )
   },
 
-  respondToInterestCampaign(campaignId: string, daysAvailable: string[]) {
+  respondToInterestCampaign(campaignId: string, daysAvailable: string[]): Promise<InterestCampaignResponseResult> {
     return authedFetch(
       import.meta.env.VITE_HEMOCIONE_ID_API_URL,
       `/interest-campaigns/${campaignId}/respond`,
