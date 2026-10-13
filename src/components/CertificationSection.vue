@@ -140,6 +140,34 @@ function responseCount(campaign: InterestCampaign) {
   )
 }
 
+function thresholdOf(campaign: InterestCampaign) {
+  const value = numberValue(campaign.threshold) ?? numberValue(campaign.thresholdSnapshot)
+  return value !== null && value > 0 ? value : null
+}
+
+function pluralize(count: number, singular: string, plural: string) {
+  return count === 1 ? singular : plural
+}
+
+function progressText(campaign: InterestCampaign) {
+  const count = responseCount(campaign)
+  const threshold = thresholdOf(campaign)
+  const noun = pluralize(count, 'manifestação', 'manifestações')
+  if (threshold === null) return `${count} ${noun}`
+  const remaining = Math.max(0, threshold - count)
+  const tail =
+    remaining > 0
+      ? `${pluralize(remaining, 'falta', 'faltam')} ${remaining}`
+      : 'meta atingida'
+  return `${count} de ${threshold} ${pluralize(threshold, 'manifestação', 'manifestações')} · ${tail}`
+}
+
+function progressPct(campaign: InterestCampaign) {
+  const threshold = thresholdOf(campaign)
+  if (threshold === null) return 0
+  return Math.min(100, (responseCount(campaign) / threshold) * 100)
+}
+
 const days = [
   { keys: ['mon', 'monday', 'segunda', 'segunda-feira'], label: 'Segunda' },
   { keys: ['tue', 'tuesday', 'terça', 'terca', 'terça-feira', 'terca-feira'], label: 'Terça' },
@@ -156,6 +184,8 @@ function dayDistribution(campaign: InterestCampaign) {
     objectValue(campaign.dayDistribution) ??
     objectValue(campaign.responsesByDay) ??
     objectValue(campaign.responsesByDayOfWeek) ??
+    objectValue(campaign.daysAvailableDistribution) ??
+    objectValue(aggregate.daysAvailableDistribution) ??
     objectValue(aggregate.dayDistribution) ??
     objectValue(aggregate.byDayOfWeek) ??
     {}
@@ -229,8 +259,8 @@ async function createCampaign() {
     errorMessage.value = 'Informe a data de início.'
     return
   }
-  if (durationDays.value < 7 || durationDays.value > 14) {
-    errorMessage.value = 'A duração deve estar entre 7 e 14 dias.'
+  if (durationDays.value < 7 || durationDays.value > 30) {
+    errorMessage.value = 'A duração deve estar entre 7 e 30 dias.'
     return
   }
 
@@ -323,6 +353,14 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
           <p>
             {{ formatDate(activeCampaign.startDate) }} a {{ formatDate(activeCampaign.endDate) }}
           </p>
+          <p class="campaign-progress" data-testid="campaign-progress">{{ progressText(activeCampaign) }}</p>
+          <span
+            v-if="thresholdOf(activeCampaign) !== null"
+            class="progress-track"
+            aria-hidden="true"
+          >
+            <span class="progress-fill" :style="{ width: `${progressPct(activeCampaign)}%` }"></span>
+          </span>
         </div>
         <button type="button" class="btn btn-secondary" :disabled="cancelling" @click="cancelCampaign">
           {{ cancelling ? 'Cancelando...' : 'Cancelar' }}
@@ -372,7 +410,7 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
               v-model.number="durationDays"
               type="number"
               min="7"
-              max="14"
+              max="30"
               data-testid="duration-input"
             />
           </label>
@@ -660,5 +698,22 @@ watch(() => props.institutionId, loadCampaigns, { immediate: true })
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+.campaign-progress {
+  font-weight: 600;
+}
+.progress-track {
+  display: block;
+  height: 8px;
+  margin-top: var(--hemo-space-2);
+  overflow: hidden;
+  border-radius: var(--hemo-radius-full);
+  background: var(--hemo-color-black-10, #e5e5e5);
+}
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--hemo-color-success-text, #1a7f4b);
 }
 </style>
