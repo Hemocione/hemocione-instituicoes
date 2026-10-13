@@ -27,7 +27,7 @@ const campaignResponse = {
   isAcceptingResponses: true,
 }
 
-function stubFetch(overrides: Record<string, unknown> = {}) {
+function stubFetch(overrides: Record<string, unknown> = {}, respondBody: Record<string, unknown> = { success: true }) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     if (String(input).includes('/public')) {
       return {
@@ -36,7 +36,7 @@ function stubFetch(overrides: Record<string, unknown> = {}) {
         json: async () => ({ ...campaignResponse, ...overrides }),
       } as Response
     }
-    return { ok: true, status: 200, json: async () => ({ success: true }) } as Response
+    return { ok: true, status: 200, json: async () => respondBody } as Response
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -325,5 +325,65 @@ describe('InterestCampaign', () => {
 
     expect(wrapper.get('.campaign-error').text()).toContain('request failed: 500')
     expect(wrapper.find('.response-form').exists()).toBe(false)
+  })
+  it('shows social progress before responding', async () => {
+    stubFetch({ responseCount: 12, remainingToThreshold: 88 })
+    const wrapper = await mountPage()
+    const text = wrapper.get('[data-testid="social-progress"]').text()
+    expect(text).toContain('12 pessoas já manifestaram interesse')
+    expect(text).toContain('Faltam apenas 88 pessoas para a coleta ser confirmada')
+  })
+
+  it('invites the first person when there are no responses and handles singular', async () => {
+    stubFetch({ responseCount: 0, remainingToThreshold: 1 })
+    const wrapper = await mountPage()
+    const text = wrapper.get('[data-testid="social-progress"]').text()
+    expect(text).toContain('Seja a primeira pessoa a manifestar interesse')
+    expect(text).toContain('Falta apenas 1 pessoa para a coleta ser confirmada')
+  })
+
+  it('hides social progress when the API does not send the fields', async () => {
+    stubFetch()
+    const wrapper = await mountPage()
+    expect(wrapper.find('[data-testid="social-progress"]').exists()).toBe(false)
+  })
+
+  it('celebrates position 1 and persists it across reload', async () => {
+    token.value = 'test-token'
+    stubFetch({}, { position: 1, remainingToThreshold: 4 })
+    const wrapper = await mountPage()
+    await wrapper.get('[data-testid="day-toggle-mon"]').trigger('click')
+    await wrapper.get('.response-form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="position-message"]').text()).toBe('Você foi a primeira pessoa a manifestar interesse!')
+    expect(wrapper.get('[data-testid="remaining-message"]').text()).toContain('Faltam apenas 4 pessoas que demonstrem interesse')
+    const href = decodeURIComponent(wrapper.get('[data-testid="whatsapp-share"]').attributes('href') ?? '')
+    expect(href).toContain('Eu manifestei interesse em doar sangue com Escola Real. Faltam apenas 4 pessoas')
+
+    wrapper.unmount()
+    stubFetch()
+    const reloaded = await mountPage()
+    expect(reloaded.get('[data-testid="position-message"]').text()).toContain('primeira pessoa')
+  })
+
+  it('shows ordinal position, singular remaining and goal reached', async () => {
+    token.value = 'test-token'
+    stubFetch({}, { position: 7, remainingToThreshold: 1 })
+    let wrapper = await mountPage()
+    await wrapper.get('[data-testid="day-toggle-mon"]').trigger('click')
+    await wrapper.get('.response-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="position-message"]').text()).toBe('Você é a 7.ª pessoa a manifestar interesse.')
+    expect(wrapper.get('[data-testid="remaining-message"]').text()).toContain('Falta apenas 1 pessoa que demonstre interesse')
+    wrapper.unmount()
+
+    localStorage.clear()
+    stubFetch({}, { position: 100, remainingToThreshold: 0 })
+    wrapper = await mountPage()
+    await wrapper.get('[data-testid="day-toggle-mon"]').trigger('click')
+    await wrapper.get('.response-form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('[data-testid="remaining-message"]').text()).toBe('Meta atingida! A coleta pode ser confirmada.')
   })
 })
