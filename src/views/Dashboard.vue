@@ -8,6 +8,7 @@ import { statusLabel, statusTone } from '../statusLabels'
 import { certificationStatusLabel, certificationStatusTone, getCertificationStatus } from '../certification'
 import InstitutionImageUploadField from '../components/InstitutionImageUploadField.vue'
 import InstitutionKindIcon from '../components/InstitutionKindIcon.vue'
+import { askHemarcio, hemarcioAvailable } from '../hemarcio'
 import { computeSubscriptionTrend, pickFeaturedEvent, type EventSummary, type SubscriberRecord } from '../eventWindows'
 
 type CollectionRequestSummary = {
@@ -133,16 +134,27 @@ onMounted(async () => {
             </h1>
             <p class="page-description">Acompanhe solicitações e mobilize doadores em um só lugar.</p>
           </div>
-          <a
-            v-if="activeInstitutionId"
-            :href="newRequestUrl(activeInstitutionId)"
-            target="_blank"
-            rel="noopener"
-            class="btn btn-primary"
-          >
-            <span aria-hidden="true">+</span>
-            Nova solicitação
-          </a>
+          <div class="dashboard-actions">
+            <button
+              v-if="hemarcioAvailable"
+              type="button"
+              class="btn btn-secondary"
+              data-testid="hemarcio-pendencias"
+              @click="askHemarcio('instituicoes.pendencias')"
+            >
+              Pergunte ao Hemárcio
+            </button>
+            <a
+              v-if="activeInstitutionId"
+              :href="newRequestUrl(activeInstitutionId)"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-primary"
+            >
+              <span aria-hidden="true">+</span>
+              Nova solicitação
+            </a>
+          </div>
         </div>
 
         <section v-if="activeInstitution()?.role === 'admin'" class="institution-images-section" aria-labelledby="institution-images-title">
@@ -310,6 +322,12 @@ onMounted(async () => {
   margin-top: var(--hemo-space-1);
   color: var(--hemo-color-text-muted);
   font-size: 0.9375rem;
+}
+.dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hemo-space-3);
+  flex-shrink: 0;
 }
 .dashboard-header .btn {
   flex-shrink: 0;
