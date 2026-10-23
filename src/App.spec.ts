@@ -44,6 +44,26 @@ describe('App shell', () => {
     viewMounts.count = 0
   })
 
+  it('no celular, a sidebar aberta cobre o conteúdo com um fundo que fecha ao tocar', async () => {
+    const width = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
+    const wrapper = mount(App, {
+      global: {
+        stubs: {
+          Sidebar: { props: ['open'], emits: ['update:open'], template: '<aside data-testid="sidebar" @click="$emit(\'update:open\', true)" />' },
+          'router-view': { template: '<div data-testid="view" />' },
+        },
+      },
+    })
+    expect(wrapper.find('[data-testid="sidebar-scrim"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="sidebar"]').trigger('click')
+    expect(wrapper.find('[data-testid="sidebar-scrim"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="sidebar-scrim"]').trigger('click')
+    expect(wrapper.find('[data-testid="sidebar-scrim"]').exists()).toBe(false)
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    wrapper.unmount()
+  })
+
   it('mostra a sidebar em rotas privadas', () => {
     const wrapper = mountApp()
 
