@@ -32,42 +32,39 @@ export function isRequestId(value: unknown): value is string {
   return typeof value === 'string' && REQUEST_ID_PATTERN.test(value)
 }
 
-function pagePattern(route: RouteLike): string {
-  const path = route.path.split('?')[0]
-  const keys = Object.keys(route.params).filter((key) => key !== 'institutionId' && key !== 'id')
-  if (!keys.length) return path
-  // a route with other params (tokens, campaign ids) reports its pattern, never the raw values
-  const pattern = route.matched?.[route.matched.length - 1]?.path
-  if (pattern) return pattern
-  return path
-    .split('/')
-    .map((segment) => {
-      const key = keys.find((k) => String(route.params[k]) === segment)
-      return key ? `:${key}` : segment
-    })
-    .join('/')
+function routeTemplate(route: RouteLike): string {
+  return route.matched?.[route.matched.length - 1]?.path ?? '/*'
 }
 
 export function buildHemarcioContext(
   route: RouteLike,
   options: { activeInstitutionId: string | null; knownInstitutionIds?: string[]; includeRequestId?: boolean }
 ): HemarcioContext {
-  const page = pagePattern(route)
+  const known = options.knownInstitutionIds ?? []
+  const routeInstitutionId = route.params.institutionId
+  const routeInstitutionKnown = typeof routeInstitutionId === 'string' && known.includes(routeInstitutionId)
+  const requestIdParam = route.params.id
+  const template = routeTemplate(route)
+
+  // page is the route template; only a known institution id and a 24-hex request id are substituted
+  const page = template.replace(/:(\w+)/g, (match, key: string) => {
+    if (key === 'institutionId' && routeInstitutionKnown) return routeInstitutionId as string
+    if (key === 'id' && isRequestId(requestIdParam)) return requestIdParam
+    return match
+  })
   const context: HemarcioContext = { product: 'instituicoes', audience: 'instituicao', page }
 
   // a route that names an institution wins over the active one, but only if the user belongs to it
-  const routeInstitutionId = route.params.institutionId
   const institutionId =
     typeof routeInstitutionId === 'string'
-      ? (options.knownInstitutionIds ?? []).includes(routeInstitutionId)
+      ? routeInstitutionKnown
         ? routeInstitutionId
         : null
       : options.activeInstitutionId
   if (institutionId) context.institutionId = institutionId
 
-  const requestId = route.params.id
-  if (options.includeRequestId !== false && /^\/pedidos\/[^/]+$/.test(page) && isRequestId(requestId)) {
-    context.requestId = requestId
+  if (options.includeRequestId !== false && template === '/pedidos/:id' && isRequestId(requestIdParam)) {
+    context.requestId = requestIdParam
   }
   return context
 }
@@ -112,9 +109,10 @@ export function createHemarcioController(deps: {
 }) {
   let instance: ChatInstance | null = null
   let available = false
-  let syncing: Promise<void> = Promise.resolve()
   // institution the current route was settled under (set by navigation, not by an institution switch)
   let settledInstitutionId: string | null | undefined
+  let dirty = false
+  let draining: Promise<void> | null = null
 
   function setAvailable(value: boolean) {
     if (available === value) return
@@ -132,8 +130,7 @@ export function createHemarcioController(deps: {
     })
   }
 
-  async function run(settled: boolean) {
-    if (settled || settledInstitutionId === undefined) settledInstitutionId = deps.getInstitutionId()
+  async function run() {
     const route = deps.getRoute()
     const authToken = deps.getToken()
     if (!isHemarcioVisible(route, !!authToken)) {
@@ -166,11 +163,24 @@ export function createHemarcioController(deps: {
     }
   }
 
-  // settled = true when called after a finished navigation
+  // Coalesced: only the latest pending sync runs, and it reads route, institution and list at send time.
+  // settled = true only after a navigation that changed the route; it records the institution the route was settled under.
   function sync(settled = false): Promise<void> {
-    const task = () => run(settled)
-    syncing = syncing.then(task, task)
-    return syncing
+    if (settled || settledInstitutionId === undefined) settledInstitutionId = deps.getInstitutionId()
+    dirty = true
+    draining ??= drain()
+    return draining
+  }
+
+  async function drain() {
+    try {
+      while (dirty) {
+        dirty = false
+        await run()
+      }
+    } finally {
+      draining = null
+    }
   }
 
   async function ask(intent: HemarcioIntent): Promise<void> {
@@ -211,7 +221,10 @@ export async function startHemarcio(router: RouterLike) {
       hemarcioAvailable.value = value
     },
   })
-  router.afterEach(() => void active?.sync(true))
+  router.afterEach((_to, _from, failure) => {
+    // a duplicated or aborted navigation did not settle a new route
+    if (!failure) void active?.sync(true)
+  })
   stopWatch = watch([token, activeInstitutionId, institutions], () => void active?.sync())
   // the first sync must see the resolved initial route, not START_LOCATION
   await router.isReady()

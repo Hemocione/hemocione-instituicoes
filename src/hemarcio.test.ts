@@ -10,6 +10,18 @@ import {
 
 const REQUEST_ID = 'a1b2c3d4e5f6a1b2c3d4e5f6'
 
+// builds a route the way vue-router would: the matched template is the path with param values as :key
+function mk(path: string, params: Record<string, string> = {}, meta: Record<string, unknown> = {}, template?: string) {
+  const derived = path
+    .split('/')
+    .map((segment) => {
+      const key = Object.keys(params).find((k) => params[k] === segment)
+      return key ? `:${key}` : segment
+    })
+    .join('/')
+  return { path, params, meta, matched: [{ path: template ?? derived }] }
+}
+
 function ctx(
   path: string,
   params: Record<string, string>,
@@ -17,7 +29,7 @@ function ctx(
   extra: { known?: string[]; matchedPath?: string; includeRequestId?: boolean } = {}
 ) {
   return buildHemarcioContext(
-    { path, params, meta: {}, matched: extra.matchedPath ? [{ path: extra.matchedPath }] : undefined },
+    { path, params, meta: {}, matched: mk(path, params, {}, extra.matchedPath).matched },
     { activeInstitutionId: active, knownInstitutionIds: extra.known, includeRequestId: extra.includeRequestId }
   )
 }
@@ -83,7 +95,7 @@ function setup(overrides: { loadSdk?: () => Promise<unknown> } = {}) {
   const instance = { setContext: vi.fn(), setToken: vi.fn(), ask: vi.fn(), destroy: vi.fn() }
   const create = vi.fn(() => instance)
   const state = {
-    route: { path: '/', params: {} as Record<string, string>, meta: {} as Record<string, unknown> },
+    route: mk('/') as ReturnType<typeof mk>,
     token: 'tok-1' as string | null,
     institutionId: 'inst-1' as string | null,
   }
@@ -119,7 +131,7 @@ describe('createHemarcioController', () => {
   it('atualiza o contexto na troca de rota e de instituição', async () => {
     const { controller, create, instance, state } = setup()
     await controller.sync()
-    state.route = { path: `/pedidos/${REQUEST_ID}`, params: { id: REQUEST_ID }, meta: {} }
+    state.route = mk(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID }, {})
     state.institutionId = 'inst-2'
     await controller.sync(true)
 
@@ -131,7 +143,7 @@ describe('createHemarcioController', () => {
 
   it('nao envia requestId velho com a instituicao nova enquanto a navegacao esta pendente', async () => {
     const { controller, instance, state } = setup()
-    state.route = { path: `/pedidos/${REQUEST_ID}`, params: { id: REQUEST_ID }, meta: {} }
+    state.route = mk(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID }, {})
     await controller.sync(true)
 
     state.institutionId = 'inst-2' // route still the old one: navigation pending
@@ -140,7 +152,7 @@ describe('createHemarcioController', () => {
     expect(pendingCtx).toMatchObject({ institutionId: 'inst-2' })
     expect(pendingCtx).not.toHaveProperty('requestId')
 
-    state.route = { path: '/', params: {}, meta: {} } // navigation settled
+    state.route = mk('/', {}, {}) // navigation settled
     await controller.sync(true)
     expect(instance.setContext).toHaveBeenLastCalledWith(
       expect.objectContaining({ institutionId: 'inst-2', page: '/' })
@@ -150,11 +162,11 @@ describe('createHemarcioController', () => {
   it('destrói a bolha em rota pública e ao deslogar', async () => {
     const { controller, instance, state } = setup()
     await controller.sync()
-    state.route = { path: '/interesse/x', params: {}, meta: { public: true } }
+    state.route = mk('/interesse/x', {}, { public: true })
     await controller.sync()
     expect(instance.destroy).toHaveBeenCalledOnce()
 
-    state.route = { path: '/', params: {}, meta: {} }
+    state.route = mk('/', {}, {})
     await controller.sync()
     state.token = null
     await controller.sync()
@@ -239,11 +251,11 @@ describe('startHemarcio', () => {
   const create = vi.fn(() => instance)
   let afterEachCb: () => void
   let currentRoute: ReturnType<typeof ref<RouteShape>>
-  type RouteShape = { path: string; params: Record<string, string>; meta: Record<string, unknown> }
+  type RouteShape = ReturnType<typeof mk>
 
   function fakeRouter() {
     afterEachCb = () => {}
-    currentRoute = ref<RouteShape>({ path: '/', params: {}, meta: {} })
+    currentRoute = ref<RouteShape>(mk('/', {}, {}))
     return {
       currentRoute,
       afterEach: (cb: () => void) => {
@@ -275,7 +287,7 @@ describe('startHemarcio', () => {
     await startHemarcio(fakeRouter())
     expect(create).toHaveBeenCalledOnce()
 
-    currentRoute.value = { path: `/pedidos/${REQUEST_ID}`, params: { id: REQUEST_ID }, meta: {} }
+    currentRoute.value = mk(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID }, {})
     afterEachCb()
     await flush()
     expect(instance.setContext).toHaveBeenLastCalledWith(
@@ -293,8 +305,118 @@ describe('startHemarcio', () => {
 
   it('nao cria a bolha em rota publica', async () => {
     const router = fakeRouter()
-    currentRoute.value = { path: '/interesse/x', params: {}, meta: { public: true } }
+    currentRoute.value = mk('/interesse/x', {}, { public: true })
     await startHemarcio(router)
     expect(create).not.toHaveBeenCalled()
+  })
+})
+
+describe('page masking', () => {
+  it('nunca usa o path cru: /pedidos/:id com id curto fica no template', () => {
+    const route = mk('/pedidos/short-secret', { id: 'short-secret' })
+    const { page } = buildHemarcioContext(route, { activeInstitutionId: 'inst-1' })
+    expect(page).toBe('/pedidos/:id')
+    expect(JSON.stringify(buildHemarcioContext(route, { activeInstitutionId: 'inst-1' }))).not.toContain('short-secret')
+  })
+
+  it('valor com %2F nao vaza', () => {
+    const route = mk('/invites/a%2Fb', { token: 'a/b' }, {}, '/invites/:token')
+    expect(buildHemarcioContext(route, { activeInstitutionId: null }).page).toBe('/invites/:token')
+  })
+
+  it('substitui so institutionId conhecido e id de 24 hex', () => {
+    const known = ['inst-b']
+    const pedido = mk(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID })
+    expect(buildHemarcioContext(pedido, { activeInstitutionId: 'inst-b', knownInstitutionIds: known }).page).toBe(
+      `/pedidos/${REQUEST_ID}`
+    )
+    const membros = mk('/inst-b/membros', { institutionId: 'inst-b' })
+    expect(buildHemarcioContext(membros, { activeInstitutionId: 'x', knownInstitutionIds: known }).page).toBe(
+      '/inst-b/membros'
+    )
+    const unknown = mk('/inst-x/membros', { institutionId: 'inst-x' })
+    expect(buildHemarcioContext(unknown, { activeInstitutionId: 'x', knownInstitutionIds: known }).page).toBe(
+      '/:institutionId/membros'
+    )
+  })
+
+  it('sem rota casada, nunca cai no path cru', () => {
+    const page = buildHemarcioContext({ path: '/secret/zzz', params: {}, meta: {} }, { activeInstitutionId: null }).page
+    expect(page).not.toContain('secret')
+  })
+})
+
+describe('context race', () => {
+  it('SDK pendente + navegacao + troca de instituicao: nunca envia requestId antigo com instituicao nova', async () => {
+    let resolveSdk!: (sdk: unknown) => void
+    const loading = new Promise((resolve) => {
+      resolveSdk = resolve
+    })
+    const { controller, instance, create, state } = setup({ loadSdk: () => loading })
+
+    const first = controller.sync(true) // SDK load pending
+    state.route = mk(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID })
+    void controller.sync(true) // navigation settled under inst-1
+    state.institutionId = 'inst-2' // switch; redirect still pending
+    void controller.sync()
+    resolveSdk({ createHemocioneChat: create })
+    await first
+
+    const sent = [
+      ...create.mock.calls.map((c) => (c as unknown[])[0] as { context: Record<string, unknown> }).map((o) => o.context),
+      ...instance.setContext.mock.calls.map((c) => c[0] as Record<string, unknown>),
+    ]
+    expect(create).toHaveBeenCalledOnce()
+    expect(sent.length).toBeGreaterThan(0)
+    for (const context of sent) {
+      expect(context.institutionId === 'inst-2' && context.requestId !== undefined).toBe(false)
+    }
+
+    state.route = mk('/') // redirect settled
+    await controller.sync(true)
+    expect(instance.setContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: '/', institutionId: 'inst-2' })
+    )
+  })
+
+  it('syncs enfileirados sao coalescidos: so o ultimo roda', async () => {
+    const { controller, create, state } = setup()
+    const a = controller.sync(true)
+    state.institutionId = 'inst-2'
+    const b = controller.sync()
+    await Promise.all([a, b])
+    expect(create).toHaveBeenCalledOnce()
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ context: expect.objectContaining({ institutionId: 'inst-2' }) })
+    )
+  })
+
+  it('navegacao duplicada (failure) nao conta como assentada e nao restaura requestId', async () => {
+    const instance = { setContext: vi.fn(), setToken: vi.fn(), ask: vi.fn(), destroy: vi.fn() }
+    ;(window as unknown as Record<string, unknown>).HemocioneSDK = { createHemocioneChat: () => instance }
+    const { token } = await import('./auth')
+    const { activeInstitutionId } = await import('./institution')
+    token.value = 'tok'
+    activeInstitutionId.value = 'inst-1'
+    let cb!: (to: unknown, from: unknown, failure?: unknown) => void
+    const currentRoute = ref(mk(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID }))
+    await startHemarcio({
+      currentRoute,
+      afterEach: (fn: never) => {
+        cb = fn
+        return () => {}
+      },
+      isReady: async () => {},
+    } as never)
+
+    activeInstitutionId.value = 'inst-2'
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+    cb({}, {}, { type: 16 }) // duplicated navigation
+    await new Promise((r) => setTimeout(r, 0))
+
+    const last = instance.setContext.mock.calls.at(-1)![0]
+    expect(last).toMatchObject({ institutionId: 'inst-2' })
+    expect(last).not.toHaveProperty('requestId')
   })
 })
