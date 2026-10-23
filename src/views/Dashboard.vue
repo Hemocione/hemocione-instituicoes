@@ -135,25 +135,25 @@ onMounted(async () => {
             <p class="page-description">Acompanhe solicitações e mobilize doadores em um só lugar.</p>
           </div>
           <div class="dashboard-actions">
-          <button
-            v-if="hemarcioAvailable"
-            type="button"
-            class="btn btn-secondary"
-            data-testid="hemarcio-pendencias"
-            @click="askHemarcio('instituicoes.pendencias')"
-          >
-            Pergunte ao Hemárcio
-          </button>
-          <a
-            v-if="activeInstitutionId"
-            :href="newRequestUrl(activeInstitutionId)"
-            target="_blank"
-            rel="noopener"
-            class="btn btn-primary"
-          >
-            <span aria-hidden="true">+</span>
-            Nova solicitação
-          </a>
+            <button
+              v-if="hemarcioAvailable"
+              type="button"
+              class="btn btn-secondary"
+              data-testid="hemarcio-pendencias"
+              @click="askHemarcio('instituicoes.pendencias')"
+            >
+              Pergunte ao Hemárcio
+            </button>
+            <a
+              v-if="activeInstitutionId"
+              :href="newRequestUrl(activeInstitutionId)"
+              target="_blank"
+              rel="noopener"
+              class="btn btn-primary"
+            >
+              <span aria-hidden="true">+</span>
+              Nova solicitação
+            </a>
           </div>
         </div>
 

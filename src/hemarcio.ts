@@ -23,6 +23,10 @@ const REQUEST_ID_PATTERN = /^[a-f0-9]{24}$/i
 export const DEFAULT_SDK_URL = 'https://chat.hemocione.com.br/sdk/0.3.0/hemocione-sdk.js'
 export const DEFAULT_CHAT_URL = 'https://chat.hemocione.com.br'
 
+export function isRequestId(value: unknown): value is string {
+  return typeof value === 'string' && REQUEST_ID_PATTERN.test(value)
+}
+
 export function buildHemarcioContext(
   path: string,
   params: Record<string, unknown>,
@@ -63,7 +67,11 @@ export function createSdkLoader(url: string): () => Promise<SdkGlobal> {
         if (sdk?.createHemocioneChat) resolve(sdk)
         else reject(new Error('HemocioneSDK ausente'))
       }
-      script.onerror = () => reject(new Error('Falha ao carregar o SDK do Hemárcio'))
+      script.onerror = () => {
+        script.remove()
+        pending = null // allow a later sync to retry
+        reject(new Error('Falha ao carregar o SDK do Hemárcio'))
+      }
       document.head.appendChild(script)
     })
     return pending
@@ -135,8 +143,8 @@ export function createHemarcioController(deps: {
     if (!instance) return
     try {
       instance.ask(intent, currentContext())
-    } catch {
-      // intent desconhecido pelo SDK carregado: sem efeito
+    } catch (error) {
+      console.warn('[hemarcio] ask falhou', error instanceof Error ? error.message : error)
     }
   }
 
@@ -145,21 +153,19 @@ export function createHemarcioController(deps: {
 
 export const hemarcioAvailable = ref(false)
 
-const controller = createHemarcioController({
-  getRoute: () => ({ path: '/', params: {}, meta: {} }),
-  getToken: () => null,
-  getInstitutionId: () => null,
-  loadSdk: () => Promise.reject(new Error('not started')),
-  chatUrl: DEFAULT_CHAT_URL,
-})
+type Controller = ReturnType<typeof createHemarcioController>
 
-let active: ReturnType<typeof createHemarcioController> = controller
+let active: Controller | null = null
+let stopWatch: (() => void) | null = null
 
 export function askHemarcio(intent: HemarcioIntent): Promise<void> {
-  return active.ask(intent)
+  return active ? active.ask(intent) : Promise.resolve()
 }
 
-export function startHemarcio(router: Router) {
+type RouterLike = Pick<Router, 'afterEach' | 'isReady'> & { currentRoute: Router['currentRoute'] }
+
+export async function startHemarcio(router: RouterLike) {
+  stopWatch?.()
   active = createHemarcioController({
     getRoute: () => router.currentRoute.value,
     getToken: () => token.value,
@@ -170,8 +176,10 @@ export function startHemarcio(router: Router) {
       hemarcioAvailable.value = value
     },
   })
-  const sync = () => void active.sync()
+  const sync = () => void active?.sync()
   router.afterEach(sync)
-  watch([token, activeInstitutionId], sync)
-  sync()
+  stopWatch = watch([token, activeInstitutionId], sync)
+  // the first sync must see the resolved initial route, not START_LOCATION
+  await router.isReady()
+  await active.sync()
 }

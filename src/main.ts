@@ -11,5 +11,5 @@ initAnalytics(router)
 initAuth().finally(() => {
   identifyFromToken(token.value)
   createApp(App).use(router).mount('#app')
-  startHemarcio(router)
+  void startHemarcio(router)
 })

@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildHemarcioContext, createHemarcioController, isHemarcioVisible } from './hemarcio'
+import { nextTick, ref } from 'vue'
+import {
+  buildHemarcioContext,
+  createHemarcioController,
+  createSdkLoader,
+  isHemarcioVisible,
+  startHemarcio,
+} from './hemarcio'
 
 const REQUEST_ID = 'a1b2c3d4e5f6a1b2c3d4e5f6'
 
@@ -134,5 +141,108 @@ describe('createHemarcioController', () => {
     })
     await controller.sync()
     await expect(controller.ask('instituicoes.pedido')).resolves.toBeUndefined()
+  })
+})
+
+describe('createSdkLoader', () => {
+  beforeEach(() => {
+    delete (window as unknown as Record<string, unknown>).HemocioneSDK
+    document.head.querySelectorAll('script').forEach((s) => s.remove())
+  })
+
+  it('reusa o global ja carregado sem injetar script', async () => {
+    const sdk = { createHemocioneChat: vi.fn() }
+    ;(window as unknown as Record<string, unknown>).HemocioneSDK = sdk
+    await expect(createSdkLoader('https://sdk.test/a.js')()).resolves.toBe(sdk)
+    expect(document.head.querySelector('script')).toBeNull()
+  })
+
+  it('rejeita no onerror e permite nova tentativa', async () => {
+    const load = createSdkLoader('https://sdk.test/a.js')
+    const first = load()
+    document.head.querySelector('script')!.onerror!(new Event('error'))
+    await expect(first).rejects.toThrow()
+
+    const second = load()
+    const script = document.head.querySelector('script')!
+    expect(script).not.toBeNull()
+    const sdk = { createHemocioneChat: vi.fn() }
+    ;(window as unknown as Record<string, unknown>).HemocioneSDK = sdk
+    script.onload!(new Event('load'))
+    await expect(second).resolves.toBe(sdk)
+  })
+
+  it('esconde os botoes quando o SDK falha', async () => {
+    const { controller } = setup({ loadSdk: createSdkLoader('https://sdk.test/b.js') })
+    const pending = controller.sync()
+    await vi.waitFor(() => expect(document.head.querySelector('script')).not.toBeNull())
+    document.head.querySelector('script')!.onerror!(new Event('error'))
+    await pending
+    expect(controller.isAvailable()).toBe(false)
+  })
+})
+
+describe('startHemarcio', () => {
+  const instance = { setContext: vi.fn(), setToken: vi.fn(), ask: vi.fn(), destroy: vi.fn() }
+  const create = vi.fn(() => instance)
+  let afterEachCb: () => void
+  let currentRoute: ReturnType<typeof ref<RouteShape>>
+  type RouteShape = { path: string; params: Record<string, string>; meta: Record<string, unknown> }
+
+  function fakeRouter() {
+    afterEachCb = () => {}
+    currentRoute = ref<RouteShape>({ path: '/', params: {}, meta: {} })
+    return {
+      currentRoute,
+      afterEach: (cb: () => void) => {
+        afterEachCb = cb
+        return () => {}
+      },
+      isReady: async () => {},
+    } as never
+  }
+  const flush = async () => {
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    ;(window as unknown as Record<string, unknown>).HemocioneSDK = { createHemocioneChat: create }
+    const auth = await import('./auth')
+    const inst = await import('./institution')
+    auth.token.value = 'tok'
+    inst.activeInstitutionId.value = 'inst-1'
+    await flush()
+    vi.clearAllMocks()
+  })
+
+  it('cria a bolha, segue navegacao, instituicao, logout e rota publica', async () => {
+    const { token } = await import('./auth')
+    const { activeInstitutionId } = await import('./institution')
+    await startHemarcio(fakeRouter())
+    expect(create).toHaveBeenCalledOnce()
+
+    currentRoute.value = { path: `/pedidos/${REQUEST_ID}`, params: { id: REQUEST_ID }, meta: {} }
+    afterEachCb()
+    await flush()
+    expect(instance.setContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: `/pedidos/${REQUEST_ID}`, requestId: REQUEST_ID })
+    )
+
+    activeInstitutionId.value = 'inst-2'
+    await flush()
+    expect(instance.setContext).toHaveBeenLastCalledWith(expect.objectContaining({ institutionId: 'inst-2' }))
+
+    token.value = null
+    await flush()
+    expect(instance.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('nao cria a bolha em rota publica', async () => {
+    const router = fakeRouter()
+    currentRoute.value = { path: '/interesse/x', params: {}, meta: { public: true } }
+    await startHemarcio(router)
+    expect(create).not.toHaveBeenCalled()
   })
 })
