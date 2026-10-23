@@ -5,6 +5,7 @@ import { coletaApi } from '../api'
 import { activeInstitutionId } from '../institution'
 import { statusLabel, statusTone } from '../statusLabels'
 import { config } from '../config'
+import { askHemarcio, hemarcioAvailable, isRequestId } from '../hemarcio'
 import EventBrandingForm from '../components/EventBrandingForm.vue'
 
 type CollectionRequestDetail = {
@@ -65,6 +66,15 @@ onMounted(async () => {
             <h1>Etapas e contrapropostas</h1>
           </div>
           <span class="pill" :class="`pill-${statusTone(request.status)}`">{{ statusLabel(request.status) }}</span>
+          <button
+            v-if="hemarcioAvailable && isRequestId(route.params.id)"
+            type="button"
+            class="btn btn-secondary"
+            data-testid="hemarcio-pedido"
+            @click="askHemarcio('instituicoes.pedido')"
+          >
+            Pergunte ao Hemárcio
+          </button>
         </div>
         <p v-if="request.note" class="note">
           <strong>Nota</strong>
@@ -153,6 +163,7 @@ onMounted(async () => {
 }
 .detail-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--hemo-space-4);
