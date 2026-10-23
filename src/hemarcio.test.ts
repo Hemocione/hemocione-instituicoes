@@ -10,9 +10,21 @@ import {
 
 const REQUEST_ID = 'a1b2c3d4e5f6a1b2c3d4e5f6'
 
+function ctx(
+  path: string,
+  params: Record<string, string>,
+  active: string | null,
+  extra: { known?: string[]; matchedPath?: string; includeRequestId?: boolean } = {}
+) {
+  return buildHemarcioContext(
+    { path, params, meta: {}, matched: extra.matchedPath ? [{ path: extra.matchedPath }] : undefined },
+    { activeInstitutionId: active, knownInstitutionIds: extra.known, includeRequestId: extra.includeRequestId }
+  )
+}
+
 describe('buildHemarcioContext', () => {
   it('monta o contexto do dashboard sem query', () => {
-    expect(buildHemarcioContext('/', {}, 'inst-1')).toEqual({
+    expect(ctx('/', {}, 'inst-1')).toEqual({
       product: 'instituicoes',
       audience: 'instituicao',
       page: '/',
@@ -21,19 +33,41 @@ describe('buildHemarcioContext', () => {
   })
 
   it('inclui requestId em /pedidos/:id quando o id tem 24 hex', () => {
-    expect(buildHemarcioContext(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID }, 'inst-1')).toMatchObject({
+    expect(ctx(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID }, 'inst-1')).toMatchObject({
       page: `/pedidos/${REQUEST_ID}`,
       requestId: REQUEST_ID,
     })
   })
 
-  it('omite requestId quando o id é inválido ou a rota é outra', () => {
-    expect(buildHemarcioContext('/pedidos/abc', { id: 'abc' }, 'inst-1')).not.toHaveProperty('requestId')
-    expect(buildHemarcioContext('/', { id: REQUEST_ID }, 'inst-1')).not.toHaveProperty('requestId')
+  it('omite requestId quando o id e invalido, a rota e outra ou includeRequestId e false', () => {
+    expect(ctx('/pedidos/abc', { id: 'abc' }, 'inst-1')).not.toHaveProperty('requestId')
+    expect(ctx('/', { id: REQUEST_ID }, 'inst-1')).not.toHaveProperty('requestId')
+    expect(
+      ctx(`/pedidos/${REQUEST_ID}`, { id: REQUEST_ID }, 'inst-1', { includeRequestId: false })
+    ).not.toHaveProperty('requestId')
   })
 
-  it('omite institutionId quando não há instituição ativa', () => {
-    expect(buildHemarcioContext('/', {}, null)).not.toHaveProperty('institutionId')
+  it('omite institutionId quando nao ha instituicao ativa', () => {
+    expect(ctx('/', {}, null)).not.toHaveProperty('institutionId')
+  })
+
+  it('usa o institutionId da rota quando o usuario pertence a ele', () => {
+    expect(ctx('/inst-b/membros', { institutionId: 'inst-b' }, 'inst-a', { known: ['inst-a', 'inst-b'] })).toMatchObject({
+      institutionId: 'inst-b',
+    })
+  })
+
+  it('omite institutionId quando o id da rota nao esta na lista carregada', () => {
+    expect(ctx('/inst-x/membros', { institutionId: 'inst-x' }, 'inst-a', { known: ['inst-a'] })).not.toHaveProperty(
+      'institutionId'
+    )
+  })
+
+  it('envia o padrao da rota quando ha params alem de institutionId e id', () => {
+    expect(
+      ctx('/invites/secret-token', { token: 'secret-token' }, 'inst-a', { matchedPath: '/invites/:token' }).page
+    ).toBe('/invites/:token')
+    expect(ctx('/interesse/camp-1', { campaignId: 'camp-1' }, 'inst-a').page).toBe('/interesse/:campaignId')
   })
 })
 
@@ -87,11 +121,29 @@ describe('createHemarcioController', () => {
     await controller.sync()
     state.route = { path: `/pedidos/${REQUEST_ID}`, params: { id: REQUEST_ID }, meta: {} }
     state.institutionId = 'inst-2'
-    await controller.sync()
+    await controller.sync(true)
 
     expect(create).toHaveBeenCalledOnce()
     expect(instance.setContext).toHaveBeenLastCalledWith(
       expect.objectContaining({ institutionId: 'inst-2', requestId: REQUEST_ID })
+    )
+  })
+
+  it('nao envia requestId velho com a instituicao nova enquanto a navegacao esta pendente', async () => {
+    const { controller, instance, state } = setup()
+    state.route = { path: `/pedidos/${REQUEST_ID}`, params: { id: REQUEST_ID }, meta: {} }
+    await controller.sync(true)
+
+    state.institutionId = 'inst-2' // route still the old one: navigation pending
+    await controller.sync()
+    const pendingCtx = instance.setContext.mock.calls.at(-1)![0]
+    expect(pendingCtx).toMatchObject({ institutionId: 'inst-2' })
+    expect(pendingCtx).not.toHaveProperty('requestId')
+
+    state.route = { path: '/', params: {}, meta: {} } // navigation settled
+    await controller.sync(true)
+    expect(instance.setContext).toHaveBeenLastCalledWith(
+      expect.objectContaining({ institutionId: 'inst-2', page: '/' })
     )
   })
 

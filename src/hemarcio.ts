@@ -1,13 +1,18 @@
 import { ref, watch } from 'vue'
 import type { Router } from 'vue-router'
 import { token } from './auth'
-import { activeInstitutionId } from './institution'
+import { activeInstitutionId, institutions } from './institution'
 
 export type HemarcioIntent = 'instituicoes.pendencias' | 'instituicoes.pedido'
 
 type HemarcioContext = Record<string, unknown>
 
-type RouteLike = { path: string; params: Record<string, unknown>; meta: Record<string, unknown> }
+type RouteLike = {
+  path: string
+  params: Record<string, unknown>
+  meta: Record<string, unknown>
+  matched?: { path: string }[]
+}
 
 type ChatInstance = {
   setContext(context: HemarcioContext): void
@@ -27,23 +32,41 @@ export function isRequestId(value: unknown): value is string {
   return typeof value === 'string' && REQUEST_ID_PATTERN.test(value)
 }
 
+function pagePattern(route: RouteLike): string {
+  const path = route.path.split('?')[0]
+  const keys = Object.keys(route.params).filter((key) => key !== 'institutionId' && key !== 'id')
+  if (!keys.length) return path
+  // a route with other params (tokens, campaign ids) reports its pattern, never the raw values
+  const pattern = route.matched?.[route.matched.length - 1]?.path
+  if (pattern) return pattern
+  return path
+    .split('/')
+    .map((segment) => {
+      const key = keys.find((k) => String(route.params[k]) === segment)
+      return key ? `:${key}` : segment
+    })
+    .join('/')
+}
+
 export function buildHemarcioContext(
-  path: string,
-  params: Record<string, unknown>,
-  institutionId: string | null
+  route: RouteLike,
+  options: { activeInstitutionId: string | null; knownInstitutionIds?: string[]; includeRequestId?: boolean }
 ): HemarcioContext {
-  const context: HemarcioContext = {
-    product: 'instituicoes',
-    audience: 'instituicao',
-    page: path.split('?')[0],
-  }
+  const page = pagePattern(route)
+  const context: HemarcioContext = { product: 'instituicoes', audience: 'instituicao', page }
+
+  // a route that names an institution wins over the active one, but only if the user belongs to it
+  const routeInstitutionId = route.params.institutionId
+  const institutionId =
+    typeof routeInstitutionId === 'string'
+      ? (options.knownInstitutionIds ?? []).includes(routeInstitutionId)
+        ? routeInstitutionId
+        : null
+      : options.activeInstitutionId
   if (institutionId) context.institutionId = institutionId
-  const requestId = params.id
-  if (
-    /^\/pedidos\/[^/]+$/.test(context.page as string) &&
-    typeof requestId === 'string' &&
-    REQUEST_ID_PATTERN.test(requestId)
-  ) {
+
+  const requestId = route.params.id
+  if (options.includeRequestId !== false && /^\/pedidos\/[^/]+$/.test(page) && isRequestId(requestId)) {
     context.requestId = requestId
   }
   return context
@@ -82,6 +105,7 @@ export function createHemarcioController(deps: {
   getRoute: () => RouteLike
   getToken: () => string | null
   getInstitutionId: () => string | null
+  getKnownInstitutionIds?: () => string[]
   loadSdk: () => Promise<SdkGlobal>
   chatUrl: string
   onAvailabilityChange?: (available: boolean) => void
@@ -89,6 +113,8 @@ export function createHemarcioController(deps: {
   let instance: ChatInstance | null = null
   let available = false
   let syncing: Promise<void> = Promise.resolve()
+  // institution the current route was settled under (set by navigation, not by an institution switch)
+  let settledInstitutionId: string | null | undefined
 
   function setAvailable(value: boolean) {
     if (available === value) return
@@ -97,11 +123,17 @@ export function createHemarcioController(deps: {
   }
 
   function currentContext(): HemarcioContext {
-    const route = deps.getRoute()
-    return buildHemarcioContext(route.path, route.params, deps.getInstitutionId())
+    const institutionId = deps.getInstitutionId()
+    return buildHemarcioContext(deps.getRoute(), {
+      activeInstitutionId: institutionId,
+      knownInstitutionIds: deps.getKnownInstitutionIds?.() ?? [],
+      // while an institution switch is navigating, the old route's request id is stale
+      includeRequestId: settledInstitutionId === undefined || settledInstitutionId === institutionId,
+    })
   }
 
-  async function run() {
+  async function run(settled: boolean) {
+    if (settled || settledInstitutionId === undefined) settledInstitutionId = deps.getInstitutionId()
     const route = deps.getRoute()
     const authToken = deps.getToken()
     if (!isHemarcioVisible(route, !!authToken)) {
@@ -134,8 +166,10 @@ export function createHemarcioController(deps: {
     }
   }
 
-  function sync(): Promise<void> {
-    syncing = syncing.then(run, run)
+  // settled = true when called after a finished navigation
+  function sync(settled = false): Promise<void> {
+    const task = () => run(settled)
+    syncing = syncing.then(task, task)
     return syncing
   }
 
@@ -170,16 +204,16 @@ export async function startHemarcio(router: RouterLike) {
     getRoute: () => router.currentRoute.value,
     getToken: () => token.value,
     getInstitutionId: () => activeInstitutionId.value,
+    getKnownInstitutionIds: () => institutions.value.map((institution) => institution.id),
     loadSdk: createSdkLoader(import.meta.env.VITE_HEMARCIO_SDK_URL || DEFAULT_SDK_URL),
     chatUrl: import.meta.env.VITE_HEMARCIO_CHAT_URL || DEFAULT_CHAT_URL,
     onAvailabilityChange: (value) => {
       hemarcioAvailable.value = value
     },
   })
-  const sync = () => void active?.sync()
-  router.afterEach(sync)
-  stopWatch = watch([token, activeInstitutionId], sync)
+  router.afterEach(() => void active?.sync(true))
+  stopWatch = watch([token, activeInstitutionId, institutions], () => void active?.sync())
   // the first sync must see the resolved initial route, not START_LOCATION
   await router.isReady()
-  await active.sync()
+  await active.sync(true)
 }
