@@ -4,7 +4,8 @@ import { nextTick } from 'vue'
 import Sidebar from './Sidebar.vue'
 import { activeInstitutionId, institutions, setInstitutions } from '../institution'
 
-const { route, logoutMock, redirectToLoginMock } = vi.hoisted(() => ({
+const { route, logoutMock, redirectToLoginMock, embed } = vi.hoisted(() => ({
+  embed: { value: false },
   route: { meta: {} as Record<string, unknown> },
   logoutMock: vi.fn(),
   redirectToLoginMock: vi.fn(),
@@ -13,6 +14,10 @@ const { route, logoutMock, redirectToLoginMock } = vi.hoisted(() => ({
 vi.mock('../auth', () => ({
   logout: logoutMock,
   redirectToLogin: redirectToLoginMock,
+}))
+
+vi.mock('../embed', () => ({
+  isEmbedded: () => embed.value,
 }))
 
 vi.mock('vue-router', () => ({
@@ -37,6 +42,25 @@ describe('Sidebar', () => {
     activeInstitutionId.value = null
     logoutMock.mockReset()
     redirectToLoginMock.mockReset()
+    embed.value = false
+  })
+
+  it('esconde o botão de sair quando embutido no app', () => {
+    embed.value = true
+    const wrapper = mountSidebar()
+    expect(wrapper.find('[data-testid="logout-button"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sidebar-toggle"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('mostra o rótulo Recolher no alternador quando aberta', async () => {
+    const wrapper = mountSidebar()
+    const toggle = wrapper.get('[data-testid="sidebar-toggle"]')
+    expect(toggle.text()).toBe('Recolher')
+    await toggle.trigger('click')
+    expect(toggle.text()).toBe('')
+    expect(toggle.attributes('aria-label')).toBe('Expandir barra lateral')
+    wrapper.unmount()
   })
 
   it('mostra o seletor de instituição e o botão de sair', () => {

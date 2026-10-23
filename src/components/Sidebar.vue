@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { activeInstitution, activeInstitutionId } from '../institution'
 import { logout, redirectToLogin } from '../auth'
+import { isEmbedded } from '../embed'
 import OrgSwitcher from './OrgSwitcher.vue'
 
 const props = withDefaults(
@@ -16,6 +17,7 @@ const emit = defineEmits<{
 }>()
 
 const sidebarOpen = ref(props.open)
+const embedded = isEmbedded()
 
 watch(
   () => props.open,
@@ -46,22 +48,6 @@ function handleLogout() {
       <div class="sidebar-brand" aria-label="Instituição ativa">
         <OrgSwitcher :collapsed="!sidebarOpen" />
       </div>
-      <button
-        type="button"
-        class="sidebar-toggle"
-        data-testid="sidebar-toggle"
-        :aria-label="sidebarOpen ? 'Recolher barra lateral' : 'Expandir barra lateral'"
-        :title="sidebarOpen ? 'Recolher barra lateral' : 'Expandir barra lateral'"
-        :aria-expanded="sidebarOpen"
-        @click="toggleSidebar"
-      >
-        <svg v-if="sidebarOpen" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <svg v-else viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </button>
     </div>
 
     <nav class="sidebar-nav" aria-label="Seções">
@@ -111,6 +97,24 @@ function handleLogout() {
     <div class="sidebar-footer">
       <button
         type="button"
+        class="sidebar-toggle"
+        data-testid="sidebar-toggle"
+        :aria-label="sidebarOpen ? 'Recolher barra lateral' : 'Expandir barra lateral'"
+        :title="sidebarOpen ? undefined : 'Expandir barra lateral'"
+        :aria-expanded="sidebarOpen"
+        @click="toggleSidebar"
+      >
+        <svg class="footer-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.8" />
+          <path d="M9 3v18" stroke="currentColor" stroke-width="1.8" />
+          <path v-if="sidebarOpen" d="m16 15-3-3 3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          <path v-else d="m14 9 3 3-3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span v-if="sidebarOpen">Recolher</span>
+      </button>
+      <button
+        v-if="!embedded"
+        type="button"
         class="btn btn-secondary"
         data-testid="logout-button"
         :aria-label="sidebarOpen ? undefined : 'Sair'"
@@ -140,7 +144,7 @@ function handleLogout() {
   height: 100dvh;
   overflow-y: auto;
   padding: 0 var(--hemo-space-4) var(--hemo-space-4);
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--hemo-color-white);
   border-right: 1px solid var(--hemo-color-black-15);
   box-shadow: 1px 0 8px rgba(37, 40, 43, 0.04);
   transition: width 0.2s ease, padding 0.2s ease;
@@ -159,9 +163,7 @@ function handleLogout() {
   border-bottom: 1px solid var(--hemo-color-black-15);
 }
 .sidebar--collapsed .sidebar-header {
-  flex-direction: column;
   justify-content: center;
-  gap: var(--hemo-space-1);
 }
 .sidebar-brand {
   min-width: 0;
@@ -171,28 +173,33 @@ function handleLogout() {
   flex: 0 0 auto;
 }
 .sidebar-toggle {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid var(--hemo-color-black-15);
-  border-radius: var(--hemo-radius-full);
-  background: var(--hemo-color-white);
+  gap: var(--hemo-space-3);
+  width: 100%;
+  min-height: 40px;
+  padding: 9px var(--hemo-space-3);
+  border: 0;
+  border-radius: var(--hemo-radius);
+  background: transparent;
   color: var(--hemo-color-black-80);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .sidebar-toggle:hover {
-  border-color: var(--hemo-color-primary);
-  background: var(--hemo-color-primary-button-hover);
-  color: var(--hemo-color-primary-dark);
+  background: var(--hemo-color-black-5);
+  color: var(--hemo-color-black-100);
 }
-.sidebar-toggle svg {
-  width: 18px;
-  height: 18px;
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--hemo-color-primary);
+  outline-offset: 2px;
+}
+.sidebar--collapsed .sidebar-toggle {
+  justify-content: center;
+  padding-inline: 0;
 }
 .sidebar-nav {
   display: flex;
@@ -239,8 +246,12 @@ function handleLogout() {
   white-space: nowrap;
 }
 .sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--hemo-space-2);
   margin-top: auto;
-  padding-top: var(--hemo-space-5);
+  padding-top: var(--hemo-space-3);
+  border-top: 1px solid var(--hemo-color-black-15);
 }
 .sidebar-footer .btn {
   width: 100%;
